@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rayl Wheel</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2381817b'/%3E%3Crect x='6' y='11' width='20' height='10' rx='3' fill='%23dbdbd2'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <!-- Held until the panel has settled and the type has arrived. Set here
+       rather than by script so it is true from the first paint, which is the
+       paint it exists to prevent. -->
+  <body class="starting">
+    <main class="frame">
+      <canvas id="stage"></canvas>
+    </main>
+
+    <aside class="panel">
+      <div class="mark">
+        <img src="/rayl-mark.svg" alt="Rayl" />
+        <span><b>Rayl</b><img class="reg" src="/rayl-reg.svg" alt="" /></span>
+      </div>
+
+      <div class="scroll">
+        <section class="group">
+          <h2>View</h2>
+          <div class="rows">
+            <div class="segmented" data-select="projection">
+              <button
+                type="button"
+                class="btn"
+                data-value="perspective"
+                data-span="half"
+              >
+                Perspective
+              </button>
+              <button
+                type="button"
+                class="btn"
+                data-value="isometric"
+                data-span="half"
+              >
+                Isometric
+              </button>
+            </div>
+            <label class="ctl" id="lensRow">
+              <span>Lens</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="fov"
+                  min="10"
+                  max="60"
+                  step="1"
+                  value="28"
+                />
+                <input class="nub" id="fovOut" value="28" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Size</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="fill"
+                  min="0.4"
+                  max="1"
+                  step="0.01"
+                  value="0.92"
+                />
+                <input class="nub" id="fillOut" value="0.92" readonly />
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Wheel</h2>
+          <div class="rows">
+            <label class="ctl">
+              <span>Radius</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="radius"
+                  min="0.8"
+                  max="8"
+                  step="0.05"
+                  value="1.7"
+                />
+                <input class="nub" id="radiusOut" value="1.7" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Spacing</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="spacing"
+                  min="-0.2"
+                  max="1.2"
+                  step="0.01"
+                  value="0.1"
+                />
+                <input class="nub" id="spacingOut" value="0.1" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Arc</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="arc"
+                  min="20"
+                  max="90"
+                  step="1"
+                  value="82"
+                />
+                <input class="nub" id="arcOut" value="82" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Fade</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="fade"
+                  min="0"
+                  max="60"
+                  step="1"
+                  value="28"
+                />
+                <input class="nub" id="fadeOut" value="28" readonly />
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Cards</h2>
+          <div class="rows">
+            <label class="ctl">
+              <span>Count</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="count"
+                  min="1"
+                  max="24"
+                  step="1"
+                  value="12"
+                />
+                <input class="nub" id="countOut" value="12" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Depth</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="depth"
+                  min="0.4"
+                  max="4"
+                  step="0.05"
+                  value="1"
+                />
+                <input class="nub" id="depthOut" value="1" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Finish</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="roughness"
+                  min="0.1"
+                  max="1"
+                  step="0.01"
+                  value="0.55"
+                />
+                <input class="nub" id="roughnessOut" value="0.55" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Colour</span>
+              <input type="color" id="colour" value="#f0f0ea" />
+            </label>
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Lighting</h2>
+          <div class="rows">
+            <div class="segmented" data-select="rig">
+              <button
+                type="button"
+                class="btn"
+                data-value="Soft"
+                data-span="third"
+              >
+                Soft
+              </button>
+              <button
+                type="button"
+                class="btn"
+                data-value="Studio"
+                data-span="third"
+              >
+                Studio
+              </button>
+              <button
+                type="button"
+                class="btn"
+                data-value="Sharp"
+                data-span="third"
+              >
+                Sharp
+              </button>
+            </div>
+            <label class="ctl">
+              <span>Light</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="light"
+                  min="0.2"
+                  max="3"
+                  step="0.05"
+                  value="2.4"
+                />
+                <input class="nub" id="lightOut" value="2.4" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Shadow</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="shadow"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.45"
+                />
+                <input class="nub" id="shadowOut" value="0.45" readonly />
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Scroll</h2>
+          <div class="rows">
+            <div class="segmented" data-select="snap">
+              <button
+                type="button"
+                class="btn"
+                data-value="snap"
+                data-span="half"
+              >
+                Snap
+              </button>
+              <button
+                type="button"
+                class="btn"
+                data-value="free"
+                data-span="half"
+              >
+                Free
+              </button>
+            </div>
+            <label class="ctl">
+              <span>Position</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="scroll"
+                  min="0"
+                  max="11"
+                  step="0.01"
+                  value="4"
+                />
+                <input class="nub" id="scrollOut" value="4" readonly />
+              </span>
+            </label>
+          </div>
+        </section>
+      </div>
+
+      <div class="dock">
+        <button type="button" class="btn" data-span="full" id="reset">
+          Reset
+        </button>
+      </div>
+    </aside>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

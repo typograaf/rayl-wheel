@@ -1,0 +1,377 @@
+/*
+ * The Rayl interface, at the short panel's measurements — node 735:12902,
+ * doubled, the way the long tool has them.
+ *
+ *   between sections .............. 24 -> 48
+ *   a section's title to its rows .. 12 -> 24
+ *   between rows in a block ......... 6 -> 12
+ *   a button ....................... 16 -> 32 tall, cornered at 4 -> 8
+ *   the mark row ................... 16 tall
+ *
+ * Every text node in the design is cap-trimmed — `text-box-trim: trim-both`
+ * with `text-box-edge: cap alphabetic` — which is why its 12px rows sit 32
+ * apart and not 40. Without it every measurement here is off by the font's
+ * leading, so it is set once, at the top, on everything.
+ */
+
+@font-face {
+  font-family: "Azeret";
+  src: url("/fonts/AzeretTRIAL-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "Azeret";
+  src: url("/fonts/AzeretTRIAL-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-display: block;
+}
+@font-face {
+  font-family: "Azeret";
+  src: url("/fonts/AzeretTRIAL-SemiBold.otf") format("opentype");
+  font-weight: 600;
+  font-display: block;
+}
+
+:root {
+  /* The panel is the ground, a control sits a step up from it, and the one
+     that is chosen goes *down* rather than up — darker than the panel it is
+     on, which is the whole of how a selection reads here. */
+  --panel: #55554e;
+  --control: #696963;
+  --chosen: #3f3f3b;
+  --ink: #eaeae5;
+  --font: "Azeret", ui-monospace, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  background: var(--panel);
+  font-family: var(--font);
+  font-weight: 500;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+body,
+body * {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+
+/* ------------------------------------------------------------- the frame --- */
+
+/*
+ * The frame holds one picture at one shape: 330 by 472, which is the scroller's
+ * own box in the design. The backdrop is inside the picture rather than behind
+ * it — it is part of the photograph, not the wall the photograph is pinned to —
+ * so what is left over here is simply the tool, at the panel's colour.
+ */
+.frame {
+  position: relative;
+  flex: 1 0 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+}
+
+#stage {
+  display: block;
+  touch-action: none;
+  cursor: grab;
+  border-radius: 2px;
+}
+
+#stage:active {
+  cursor: grabbing;
+}
+
+/* ------------------------------------------------------------- the panel --- */
+
+.panel {
+  width: 360px;
+  flex: none;
+  height: 100%;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  background: var(--panel);
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+body.starting .panel {
+  opacity: 0;
+}
+
+body.starting * {
+  transition: none !important;
+}
+
+/*
+ * The controls scroll and the mark does not, and the scroller goes under rather
+ * than stopping dead: the last 24 of either end fade to nothing, so a group
+ * half out of view reads as more-to-come and not as a cut.
+ */
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  padding: 24px 0;
+  margin: -24px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
+}
+
+.scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 16px;
+}
+
+.mark > img {
+  display: block;
+  height: 18.96px;
+  width: auto;
+}
+
+.mark > span {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.mark b {
+  /* The wordmark is drawn, not set: it stays at the weight it was cut at
+     whatever the rest of the interface is doing. */
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 0.79;
+  letter-spacing: -0.96px;
+  margin-right: 0.9px;
+}
+
+.mark img.reg {
+  display: block;
+  width: 3.53px;
+  height: 3.506px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  flex: none;
+}
+
+.group > h2 {
+  margin: 0;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.08px;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* A block of sliders and a block of buttons are two blocks, not two rows. */
+.rows > .segmented + .ctl,
+.rows > .ctl + .segmented {
+  margin-top: 12px;
+}
+
+.ctl[hidden] {
+  display: none;
+}
+
+/* ----------------------------------------------------------- the control --- */
+
+.ctl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  min-height: 12px;
+}
+
+.ctl > span {
+  white-space: nowrap;
+}
+
+/*
+ * The track is a generated path — see track.js. The rail runs *out* of the nub
+ * through a concave fillet on each side rather than butting against it, which
+ * is the design's shape and the one thing a rail plus a box cannot make.
+ */
+.track {
+  position: relative;
+  width: 170px;
+  height: 12px;
+  flex: none;
+}
+
+.track > svg {
+  display: block;
+  width: 170px;
+  height: 12px;
+  fill: var(--control);
+}
+
+.track input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  appearance: none;
+  background: none;
+  z-index: 1;
+}
+
+/* The value, riding in the nub. Padding outside the characters, so a longer
+   number pushes the shape out around it instead of hanging out of it. */
+.nub {
+  position: absolute;
+  top: 0;
+  left: var(--nub-x, 0px);
+  height: 12px;
+  min-width: 24px;
+  width: auto;
+  box-sizing: content-box;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 12px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 2;
+  field-sizing: content;
+  /* Half a pixel down: the cap trim does not reach inside a form control, and
+     an em box carries descender room a row of digits never uses. */
+  transform: translateY(0.5px);
+}
+
+/* A colour keeps the row's shape: 170 wide, 12 tall, the nub's radius. */
+.ctl input[type="color"] {
+  width: 170px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+.ctl input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.ctl input[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: 3px;
+}
+
+/* ----------------------------------------------------------- the buttons --- */
+
+/*
+ * The short panel's rows, at the design's measurements doubled: two across is
+ * half the panel less six, three across a third less eight, and twelve between.
+ */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.btn {
+  flex: none;
+  min-width: max-content;
+  white-space: nowrap;
+  height: 32px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: var(--control);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  /* A button answers when it is pressed: the darker colour arrives with no
+     transition and leaves with one. */
+  transition: background-color 0.14s ease;
+}
+
+.btn[data-span="half"] {
+  width: calc(50% - 6px);
+}
+
+.btn[data-span="third"] {
+  width: calc(33.333% - 8px);
+}
+
+.btn[data-span="full"] {
+  width: 100%;
+}
+
+.btn[data-on="true"] {
+  background: var(--chosen);
+}
+
+/* The row that stays: whatever is done rather than set. */
+.dock {
+  flex: none;
+  display: flex;
+  gap: 12px;
+}

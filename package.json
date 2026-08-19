@@ -1,0 +1,22 @@
+{
+  "name": "rayl-wheel",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "format": "prettier --write .",
+    "test": "node test/run.mjs",
+    "lint": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "puppeteer-core": "^25.7.0",
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  }
+}
