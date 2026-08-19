@@ -372,9 +372,18 @@ export async function cardAtlas(scale = PRINT_SCALE) {
   return texture;
 }
 
-/** Where card `i` sits on the sheet, as a scale and an offset in uv. */
-export function cardTile(i) {
-  const index = ((i % CARD_COUNT) + CARD_COUNT) % CARD_COUNT;
+/**
+ * Where card `i` sits on the sheet, as a scale and an offset in uv.
+ *
+ * `period` is how often the run of designs starts over. Six is every design
+ * once, which is what a list wants; anything shorter is a shorter run repeated,
+ * which is what a loop wants — see the wheel, where the reason a loop needs one
+ * is set out.
+ */
+export function cardTile(i, period = CARD_COUNT) {
+  const run = Math.max(1, Math.round(period));
+  const index =
+    (((((i % run) + run) % run) % CARD_COUNT) + CARD_COUNT) % CARD_COUNT;
   const column = index % CARD_COLUMNS;
   const row = Math.floor(index / CARD_COLUMNS);
   return [

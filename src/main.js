@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { loadCard } from "./card.js";
-import { cardAtlas, PRINT_SCALE, CARD_COLUMNS } from "./cardart.js";
+import { cardAtlas, PRINT_SCALE, CARD_COLUMNS, CARD_COUNT } from "./cardart.js";
 import { Wheel, CARD_HEIGHT } from "./wheel.js";
 import { backdrop, Lighting } from "./environment.js";
 import { mountTrack } from "./track.js";
@@ -128,6 +128,12 @@ let cancel = false;
 /* How much print the sheet on the cards has, in canvas pixels per design unit.
    It goes up for an export and comes back down after one. */
 let printed = PRINT_SCALE;
+
+/* How many cards were actually asked for, as against how many the run of
+   designs rounded that up to. Kept apart so the rounding is done afresh from
+   what was wanted every time — round the rounded number and a count climbs a
+   little with every change of travel, and never comes back down. */
+let asked = DEFAULTS.count;
 let needs = true;
 const mark = () => {
   needs = true;
@@ -304,6 +310,45 @@ function relimit() {
   sliders.get("scroll").refresh();
 }
 
+/**
+ * The list, cut into whole runs of designs.
+ *
+ * Cycling, the run of designs is the travel — see the wheel, where why that is
+ * the only arrangement a loop can close in is set out. The run then has to
+ * divide the ring as well, or the pattern breaks where the ring closes and the
+ * wheel goes through a seam once every turn. So the count is rounded up to a
+ * whole number of runs.
+ *
+ * Rounded in the panel rather than behind it. A count that quietly meant
+ * something other than the number on the slider is the kind of thing you find
+ * out about a fortnight later, from a render.
+ */
+function fitList() {
+  const run = cycling() ? Math.max(1, Math.round(params.travel)) : CARD_COUNT;
+  const control = sliders.get("count");
+  let count = Math.round(asked);
+
+  if (cycling()) {
+    const most = parseFloat(control.input.max);
+    const up = Math.ceil(count / run) * run;
+    count = up <= most ? up : Math.max(Math.floor(most / run) * run, run);
+  }
+
+  if (count !== Math.round(params.count)) {
+    params.count = count;
+    control.input.value = String(count);
+    control.refresh();
+  }
+  if (!cycling()) asked = count;
+  if (wheel.cards.length !== count) {
+    wheel.setCount(count);
+    pushSurface();
+  }
+  wheel.setDesigns(run);
+  relimit();
+  mark();
+}
+
 function pushSurface() {
   if (!wheel) return;
   wheel.setSurface({
@@ -350,9 +395,8 @@ function mountPanel() {
   bindSlider("fade", "fade", 0);
 
   bindSlider("count", "count", 0, () => {
-    wheel.setCount(Math.round(params.count));
-    pushSurface();
-    relimit();
+    asked = params.count;
+    fitList();
   });
   bindSlider("depth", "depth", 2);
   bindSlider("roughness", "roughness", 2, pushSurface);
@@ -382,10 +426,10 @@ function mountPanel() {
     settling = 0;
   });
 
-  /* The list's length changes with the wrap, so the scroll's own track is recut
-     when the loop's mode is. */
-  bindSelect("motion", relimit);
-  bindSlider("travel", "travel", 0);
+  /* Both of these decide how long a run of designs is and how many of them the
+     ring holds, so both of them re-cut the list. */
+  bindSelect("motion", fitList);
+  bindSlider("travel", "travel", 0, fitList);
   bindSlider("seconds", "seconds", 1);
   bindSelect("curve");
   document.getElementById("play").addEventListener("click", () => {
@@ -406,6 +450,7 @@ function mountPanel() {
 
   document.getElementById("reset").addEventListener("click", () => {
     Object.assign(params, DEFAULTS);
+    asked = DEFAULTS.count;
     pushPanel();
     wheel.setCount(Math.round(params.count));
     if (playing) stop();
@@ -417,7 +462,7 @@ function mountPanel() {
     place();
     pushSurface();
     pushLighting();
-    relimit();
+    fitList();
     record();
     mark();
   });
@@ -823,6 +868,7 @@ async function start() {
   ]);
 
   wheel = new Wheel(scene, geometry, atlas);
+  asked = Math.round(params.count);
   wheel.setCount(Math.round(params.count));
 
   mountPanel();
@@ -833,7 +879,7 @@ async function start() {
   document.getElementById("lensRow").hidden = params.projection === "isometric";
   pushSurface();
   pushLighting();
-  relimit();
+  fitList();
   resize();
 
   window.addEventListener("resize", resize);

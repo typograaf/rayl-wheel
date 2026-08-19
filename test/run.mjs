@@ -355,27 +355,34 @@ check(
 );
 
 /*
- * And the loop closes.
+ * And the loop closes, whatever it travels.
  *
- * A cycle ends a whole travel further on than it started, so whether it closes
- * is whether those two places are the same picture. The positions always are —
- * a card stands at its nearest repeat — so what decides it is the artwork, and
- * the sheet holds six designs. Six along is the same six cards in the same
- * places; five along is not, which is the whole reason the default is six.
+ * Turning the wheel a whole number of cards always puts every card where
+ * another one was — the places match by construction — so what decides whether
+ * the last frame is the first one is what is printed on them. Which is why the
+ * run of designs is made to be the travel: two along, two designs; three along,
+ * three. Any other arrangement and the loop cuts, and it cuts to a picture that
+ * is right in every other way, which is the worst kind.
  */
-await set("scroll", 3);
-const start = await frame();
-await set("scroll", 9);
-const sixOn = await frame();
-check("a cycle of six closes exactly", start === sixOn, `${start} vs ${sixOn}`);
-
-await set("scroll", 8);
-const fiveOn = await frame();
-check(
-  "a cycle of five does not",
-  start !== fiveOn,
-  "it closed, which it cannot",
-);
+for (const travel of [1, 2, 3, 4, 5, 6, 7, 8, 12]) {
+  await set("travel", travel);
+  await wait(250);
+  const held = (await state()).params.count;
+  await set("scroll", 0);
+  const before = await frame();
+  await set("scroll", travel);
+  const after = await frame();
+  check(
+    `a cycle of ${travel} closes exactly`,
+    before === after,
+    `${held} cards · ${before} vs ${after}`,
+  );
+  check(
+    `and the list is a whole number of runs`,
+    held % travel === 0,
+    `${held} cards in runs of ${travel}`,
+  );
+}
 
 /*
  * And a card at the edge of the arc is genuinely see-through.

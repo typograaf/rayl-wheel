@@ -98,6 +98,8 @@ export class Wheel {
     this.geometry = geometry;
     this.atlas = atlas;
     this.cards = [];
+    /* How often the run of designs starts over. Six is every design once. */
+    this.period = 6;
   }
 
   /** As many cards as the panel asks for, each with its own design. */
@@ -111,12 +113,36 @@ export class Wheel {
       const i = this.cards.length;
       const card = new THREE.Mesh(
         this.geometry,
-        cardMaterial(this.atlas, cardTile(i)),
+        cardMaterial(this.atlas, cardTile(i, this.period)),
       );
       card.castShadow = true;
       card.receiveShadow = true;
       this.cards.push(card);
       this.scene.add(card);
+    }
+  }
+
+  /**
+   * How often the run of designs starts over.
+   *
+   * Which is what decides whether a loop closes, and there is no way round it.
+   * Turning the wheel a whole number of cards puts every card where another one
+   * was — the places always match — so what is left is what is printed on them.
+   * Move three cards along a run of six and every slot has a design it did not
+   * have before: the last frame is a different picture from the first, and a
+   * loop of it cuts.
+   *
+   * So the run is made to be the travel. Two cards along, two designs; three
+   * along, three; six along, all six, which is where this opens. It is the one
+   * arrangement in which moving by the travel lands every card on a card
+   * carrying the same design, and a loop that does that has no seam in it.
+   */
+  setDesigns(period) {
+    this.period = Math.max(1, Math.round(period));
+    for (let i = 0; i < this.cards.length; i++) {
+      this.cards[i].material.userData.tile.value.set(
+        ...cardTile(i, this.period),
+      );
     }
   }
 

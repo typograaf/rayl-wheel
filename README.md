@@ -198,10 +198,24 @@ one number is one thing too many and the one you are holding should win.
 **Ping-pong** runs out and back along a list that ends, and closes whatever it
 travels: it finishes where it turned round from. **Cycle** makes the list a
 ring — a card stands at its nearest repeat, so the wheel can be turned for as
-long as you like — and closes when the travel is a multiple of six, because the
-sheet holds six designs and six along is the same six cards in the same places.
-Which is why it opens at six. Five along is a loop with a jump in it, and the
-suite checks both halves of that so it stays true.
+long as you like — and closes whatever it travels too, which takes one decision
+to arrange.
+
+Turning the wheel a whole number of cards always puts every card where another
+one was: the places match by construction, whatever the travel. So the only
+thing that can differ between the first frame and the last is what is _printed_
+on them. Move three along a run of six designs and every slot comes back
+carrying somebody else's card — the loop cuts, and it cuts to a picture that is
+right in every other way, which is the worst kind of wrong.
+
+**So the run of designs is the travel.** Two along, two designs; three along,
+three; six along, all six, which is where this opens. The list is rounded up to
+a whole number of runs for the same reason — a run that did not divide the ring
+would break where the ring closes, and the wheel would go through a seam once a
+turn — and the rounding is done in the panel rather than behind it, since a
+count that quietly meant something else is the kind of thing you find out about
+from a render a fortnight later. The suite checks every travel from one to
+twelve, frame against frame.
 
 Asking that question found a real bug, too. `transparent` is baked into three's
 shader program as OPAQUE, so a card that started to fade without asking for a
