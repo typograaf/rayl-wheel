@@ -243,6 +243,29 @@ are the transparent frames the still export writes, in order. The folder is aske
 for first, before anything is drawn — a picker needs the click that opened it,
 and redrawing the sheet at export size takes long enough to spend that click.
 
+## ProRes
+
+    npm run prores -- <folder of frames> [fps]
+
+Which is a step, and it is a step because the browser cannot take it. There is
+no ProRes encoder in WebCodecs — not under `ap4h`, `apch`, `prores` or any other
+name it goes by, all of which this was asked and all of which it refused — and
+Chrome will not encode alpha in any codec it _does_ have: VP8, VP9, AV1, H.264
+and HEVC all come back unsupported the moment `alpha: "keep"` is on the config.
+So there is no in-page route to an alpha movie at all, whatever the container.
+
+The alternative was thirty megabytes of ffmpeg compiled to wasm sitting inside a
+tool whose whole point is that it comes up in a tab. So the frames come out of
+the browser, which is what a browser is good for, and the encoding happens where
+an encoder already is. The tool says the command on the status line when it has
+finished writing them, so it is one paste rather than something to remember.
+
+4444 rather than 422, because 422 has no alpha channel to put anything in.
+Sixteen bits of it, straight rather than premultiplied — which is what a canvas
+hands over and what a compositor expects, so nothing is undone at either end.
+The suite checks it end to end: the frames the tool writes, through this, into a
+file `ffprobe` reads back as `prores, 4444, yuva444p12le`.
+
 ## The link
 
 Every control writes itself into the address bar, so a reload comes back to the

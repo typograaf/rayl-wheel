@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "format": "prettier --write .",
     "test": "node test/run.mjs",
-    "lint": "prettier --check ."
+    "lint": "prettier --check .",
+    "prores": "node tools/prores.mjs"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

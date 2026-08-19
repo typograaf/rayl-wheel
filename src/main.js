@@ -397,7 +397,9 @@ function mountPanel() {
   bindSlider("width", "width", 0);
   bindSlider("fps", "fps", 0);
   bindSlider("bitrate", "bitrate", 0);
-  document.getElementById("export").addEventListener("click", beginExport);
+  document
+    .getElementById("export")
+    .addEventListener("click", () => beginExport());
 
   document.getElementById("lensRow").hidden = params.projection === "isometric";
   showFormat();
@@ -599,7 +601,14 @@ function drawExport(time) {
   renderer.render(scene, camera);
 }
 
-async function beginExport() {
+/**
+ * Write whatever the panel is asking for.
+ *
+ * `given` is a folder that has already been chosen — which the suite hands in,
+ * since a native picker is the one thing in here nobody can click from a test.
+ * Pressed by a person, it asks for one.
+ */
+async function beginExport(given) {
   /* A second press is a cancel: the button says so, and a recording is the one
      thing here long enough to want out of. */
   if (busy) {
@@ -623,8 +632,8 @@ async function beginExport() {
    * sheet redrawn at export size, a renderer resized — takes long enough to
    * spend that click. Asked for last, the browser refuses to open it at all.
    */
-  let folder = null;
-  if (sequence) {
+  let folder = given || null;
+  if (sequence && !folder) {
     folder = await chooseFolder();
     if (folder === undefined) {
       setStatus("this browser cannot pick a folder — try PNG or MP4");
@@ -694,10 +703,14 @@ async function beginExport() {
             ),
           shouldStop: () => cancel,
         });
+        /* And what to do with them. ProRes is not something a browser can
+           write — see tools/prores.mjs, where that is argued properly — so the
+           last thing this says is the one command that finishes the job. */
+        const where = folder.name || "the folder";
         setStatus(
           cancel
             ? `stopped after ${written} frames`
-            : `${written} frames · ${size.width}x${size.height} · transparent`,
+            : `${written} transparent frames · npm run prores -- ${where}`,
         );
       } finally {
         scene.background = sheet;
@@ -848,16 +861,8 @@ window.rayl = {
      instant drawn — which is how a seam is looked for without an encoder. */
   pose: (time) => poseAt(time),
   draw: (time) => drawExport(time),
-  /* The sequence, against any folder-shaped thing — the picker itself is the
-     one line of this a test cannot click. */
-  frames: (folder) =>
-    saveFrames({
-      folder,
-      canvas,
-      draw: drawExport,
-      fps: Math.round(params.fps),
-      seconds: params.seconds,
-      name: exportName(params.projection),
-    }),
+  /* The whole export, against a folder that has already been chosen — the
+     picker itself is the one line of it a test cannot click. */
+  write: (folder) => beginExport(folder),
   printScale: () => printed,
 };

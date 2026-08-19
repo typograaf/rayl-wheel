@@ -8,7 +8,7 @@
  * is what a shader did. A software rasteriser would answer a different question
  * at a tenth of the speed.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import net from "node:net";
 import path from "node:path";
 import fs from "node:fs";
@@ -500,43 +500,114 @@ check(
   "the big sheet is still on the cards",
 );
 
-/* A sequence, into a folder. The picker itself is the one line of this that
-   cannot be clicked from a test, so what is checked is everything after it. */
+/*
+ * A sequence, into a folder.
+ *
+ * The whole export path, with the picker replaced by somewhere to put the
+ * bytes — which is the only part of it a test cannot click. The frames come
+ * back out of the page and are written here, so what follows can be run against
+ * real files.
+ */
+await set("format", "frames");
 await set("seconds", 1);
 await set("fps", 12);
+await set("width", 660);
 const sequence = await page.evaluate(async () => {
   const written = [];
   const folder = {
+    name: "frames",
     getFileHandle: async (name) => ({
       createWritable: async () => ({
-        write: async (blob) => written.push({ name, size: blob.size }),
+        write: async (blob) => {
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          let text = "";
+          for (let i = 0; i < bytes.length; i++)
+            text += String.fromCharCode(bytes[i]);
+          written.push({ name, size: blob.size, data: btoa(text) });
+        },
         close: async () => {},
       }),
     }),
   };
-  const count = await window.rayl.frames(folder);
-  return {
-    count,
-    names: written.map((w) => w.name),
-    sizes: written.map((w) => w.size),
-  };
+  await window.rayl.write(folder);
+  return { written, status: document.getElementById("status").textContent };
 });
+const wrote = sequence.written;
 check(
   "a sequence comes out a frame at a time",
-  sequence.count === 12,
-  `${sequence.count} frames`,
+  wrote.length === 12,
+  `${wrote.length} frames`,
 );
 check(
   "numbered in order",
-  /_0001\.png$/.test(sequence.names[0]) &&
-    /_0012\.png$/.test(sequence.names[11]),
-  sequence.names[0] + " ... " + sequence.names[11],
+  /_0001\.png$/.test(wrote[0]?.name) && /_0012\.png$/.test(wrote[11]?.name),
+  `${wrote[0]?.name} ... ${wrote[11]?.name}`,
+);
+const shape = (f) => {
+  const head = Buffer.from(f.data, "base64");
+  return `${head.readUInt32BE(16)}x${head.readUInt32BE(20)}`;
+};
+check(
+  "at the size the panel asked for",
+  wrote.every((f) => shape(f) === "660x944"),
+  [...new Set(wrote.map(shape))].join(", "),
 );
 check(
-  "and every frame has something in it",
-  sequence.sizes.every((size) => size > 5000),
-  `smallest ${Math.min(...sequence.sizes)} bytes`,
+  "and it says what to do with them",
+  /npm run prores -- frames/.test(sequence.status),
+  sequence.status,
 );
+
+/*
+ * And those frames make a ProRes 4444 with its alpha intact.
+ *
+ * The one thing here that happens outside the browser, because there is no
+ * ProRes encoder in one — so this runs the step a person would run, over the
+ * files the tool actually wrote.
+ */
+const seqDir = fs.mkdtempSync(path.join(os.tmpdir(), "rayl-frames-"));
+for (const file of wrote)
+  fs.writeFileSync(
+    path.join(seqDir, file.name),
+    Buffer.from(file.data, "base64"),
+  );
+
+if (spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).error) {
+  console.log("  --   no ffmpeg on the path, skipping the movie");
+} else {
+  const made = spawnSync(
+    "node",
+    [path.join(here, "../tools/prores.mjs"), seqDir, "12"],
+    { encoding: "utf8" },
+  );
+  const movie = fs.readdirSync(seqDir).find((name) => name.endsWith(".mov"));
+  check(
+    "a ProRes comes out of them",
+    Boolean(movie),
+    (made.stderr || made.stdout || "").trim().split("\n").pop(),
+  );
+  if (movie) {
+    const shown = spawnSync(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-show_entries",
+        "stream=codec_name,profile,pix_fmt",
+        "-of",
+        "csv=p=0",
+        path.join(seqDir, movie),
+      ],
+      { encoding: "utf8" },
+    ).stdout.trim();
+    check(
+      "4444, with an alpha channel in it",
+      /prores/.test(shown) && /4444/.test(shown) && /yuva/.test(shown),
+      shown,
+    );
+  }
+}
+fs.rmSync(seqDir, { recursive: true, force: true });
 
 /* ------------------------------------------------------------- the link --- */
 
