@@ -37,10 +37,21 @@ const RULE = 2;
  */
 const ICON = 0.8;
 
-/* How many canvas pixels one design unit gets. At three, the ten-point type is
-   thirty pixels tall, which holds up to a card the full width of a retina
-   frame. */
-const SCALE = 3;
+/*
+ * How many canvas pixels one design unit gets.
+ *
+ * Three is what a retina preview wants: the card is 330 across in the design
+ * and about a thousand pixels across in a preview at that size, so the sheet
+ * has a pixel for each of them and a little over.
+ *
+ * It is an argument rather than a constant because an export is not a preview.
+ * A card six thousand pixels wide asked of a sheet drawn for a thousand is a
+ * blur with the right colours in it — which is the one thing a design drawn
+ * rather than exported does not have to be. Every measurement below is in the
+ * design's own units and the scale is put on the context once, so the same code
+ * draws the same card at any size.
+ */
+export const PRINT_SCALE = 3;
 
 /* Three across and two down, which keeps the sheet nearer square than a strip
    and so further from any driver's limit on one side. */
@@ -166,21 +177,23 @@ function capHeight(ctx) {
 }
 
 function setFace(ctx, size, tracking = 0) {
-  ctx.font = `500 ${size * SCALE}px Azeret, monospace`;
-  ctx.letterSpacing = `${tracking * SCALE}px`;
+  ctx.font = `500 ${size}px Azeret, monospace`;
+  ctx.letterSpacing = `${tracking}px`;
   ctx.fillStyle = INK;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
 }
 
-const widthOf = (ctx, text) => ctx.measureText(text).width / SCALE;
+/* Measured in the design's units, because that is what the font is set in:
+   text metrics come back in user space and the scale is on the context. */
+const widthOf = (ctx, text) => ctx.measureText(text).width;
 
 /** A rounded bar, which every rule and every divider on this card is. */
 function bar(ctx, x, y, w, h, colour) {
   const r = Math.min(w, h) / 2;
   ctx.fillStyle = colour;
   ctx.beginPath();
-  ctx.roundRect(x * SCALE, y * SCALE, w * SCALE, h * SCALE, r * SCALE);
+  ctx.roundRect(x, y, w, h, r);
   ctx.fill();
 }
 
@@ -195,7 +208,7 @@ function bar(ctx, x, y, w, h, colour) {
  */
 function drawCard(ctx, card, ox, oy, icon) {
   ctx.save();
-  ctx.translate(ox * SCALE, oy * SCALE);
+  ctx.translate(ox, oy);
 
   /* ------------------------------------------------------------ the left --- */
 
@@ -213,11 +226,11 @@ function drawCard(ctx, card, ox, oy, icon) {
   const iconHeight = icon ? icon.height * ICON : 14;
 
   setFace(ctx, 18);
-  const titleCap = capHeight(ctx) / SCALE;
+  const titleCap = capHeight(ctx);
   const titleWidth = Math.max(...card.title.map((line) => widthOf(ctx, line)));
 
   setFace(ctx, 10, 0.1);
-  const atCap = capHeight(ctx) / SCALE;
+  const atCap = capHeight(ctx);
   const atWidth = widthOf(ctx, card.at);
 
   const height = iconHeight + 12 + (18 + titleCap) + 12 + atCap;
@@ -225,13 +238,7 @@ function drawCard(ctx, card, ox, oy, icon) {
   let y = top;
 
   if (icon) {
-    ctx.drawImage(
-      icon.image,
-      PAD * SCALE,
-      y * SCALE,
-      iconWidth * SCALE,
-      iconHeight * SCALE,
-    );
+    ctx.drawImage(icon.image, PAD, y, iconWidth, iconHeight);
   }
   y += iconHeight + 12;
 
@@ -239,12 +246,12 @@ function drawCard(ctx, card, ox, oy, icon) {
   card.title.forEach((line, i) => {
     /* Leading none: the second line sits a full size below the first, and the
        block is trimmed to the caps of one and the baseline of the other. */
-    ctx.fillText(line, PAD * SCALE, (y + titleCap + i * 18) * SCALE);
+    ctx.fillText(line, PAD, y + titleCap + i * 18);
   });
   y += 18 + titleCap + 12;
 
   setFace(ctx, 10, 0.1);
-  ctx.fillText(card.at, PAD * SCALE, (y + atCap) * SCALE);
+  ctx.fillText(card.at, PAD, y + atCap);
 
   const leftWidth = Math.max(iconWidth, titleWidth, atWidth);
 
@@ -265,7 +272,7 @@ function drawCard(ctx, card, ox, oy, icon) {
   bar(ctx, x, trough, Math.max(right * card.bar, RULE), RULE, INK);
 
   setFace(ctx, 10, 0.1);
-  const cap = capHeight(ctx) / SCALE;
+  const cap = capHeight(ctx);
   const middle = (line) => line + (row + cap) / 2;
 
   /*
@@ -281,11 +288,11 @@ function drawCard(ctx, card, ox, oy, icon) {
   let at = x;
   bar(ctx, at, rowA, RULE, row, INK);
   at += RULE + spare;
-  ctx.fillText(card.hours, (at + 6) * SCALE, middle(rowA) * SCALE);
+  ctx.fillText(card.hours, at + 6, middle(rowA));
   at += hoursWidth + spare;
   bar(ctx, at, rowA, RULE, row, INK);
   at += RULE + spare;
-  ctx.fillText(card.shift, (at + 6) * SCALE, middle(rowA) * SCALE);
+  ctx.fillText(card.shift, at + 6, middle(rowA));
   at += shiftWidth + spare;
   bar(ctx, at, rowA, RULE, row, INK);
 
@@ -298,18 +305,14 @@ function drawCard(ctx, card, ox, oy, icon) {
   at = x;
   bar(ctx, at, rowB, RULE, row, INK);
   at += RULE + 12;
-  ctx.fillText(card.people, at * SCALE, middle(rowB) * SCALE);
+  ctx.fillText(card.people, at, middle(rowB));
   drawHours(ctx, at + widthOf(ctx, card.people) + 4, rowB + (row - 12) / 2);
   at += headWidth + 12;
   bar(ctx, at, rowB, RULE, row, INK);
   at += RULE + 12;
   const rest = W - PAD - RULE - 12 - at;
   const length = widthOf(ctx, card.length);
-  ctx.fillText(
-    card.length,
-    (at + (rest - length) / 2) * SCALE,
-    middle(rowB) * SCALE,
-  );
+  ctx.fillText(card.length, at + (rest - length) / 2, middle(rowB));
   bar(ctx, W - PAD - RULE, rowB, RULE, row, INK);
 
   ctx.restore();
@@ -322,20 +325,15 @@ function drawCard(ctx, card, ox, oy, icon) {
  */
 function drawHours(ctx, x, y) {
   ctx.save();
-  ctx.translate(x * SCALE, y * SCALE);
+  ctx.translate(x, y);
   ctx.fillStyle = INK;
   ctx.beginPath();
-  ctx.roundRect(0, 0, 12 * SCALE, 12 * SCALE, 3 * SCALE);
-  ctx.roundRect(1.5 * SCALE, 1.5 * SCALE, 9 * SCALE, 9 * SCALE, 1.5 * SCALE);
+  ctx.roundRect(0, 0, 12, 12, 3);
+  ctx.roundRect(1.5, 1.5, 9, 9, 1.5);
   ctx.fill("evenodd");
   ctx.beginPath();
-  ctx.roundRect(4.5 * SCALE, 3 * SCALE, 3 * SCALE, 1.5 * SCALE, 0.75 * SCALE);
-  ctx.roundRect(3 * SCALE, 6 * SCALE, 6 * SCALE, 3 * SCALE, [
-    1.5 * SCALE,
-    1.5 * SCALE,
-    0.75 * SCALE,
-    0.75 * SCALE,
-  ]);
+  ctx.roundRect(4.5, 3, 3, 1.5, 0.75);
+  ctx.roundRect(3, 6, 6, 3, [1.5, 1.5, 0.75, 0.75]);
   ctx.fill();
   ctx.restore();
 }
@@ -348,15 +346,18 @@ function drawHours(ctx, x, y) {
  * the fallback face is not the same picture at a different weight — it is the
  * wrong picture.
  */
-export async function cardAtlas() {
-  await document.fonts.load(`500 ${18 * SCALE}px Azeret`);
-  await document.fonts.load(`500 ${10 * SCALE}px Azeret`);
+export async function cardAtlas(scale = PRINT_SCALE) {
+  await document.fonts.load("500 18px Azeret");
+  await document.fonts.load("500 10px Azeret");
   const art = await Promise.all(CARDS.map((card) => loadIcon(card.icon)));
 
   const canvas = document.createElement("canvas");
-  canvas.width = W * CARD_COLUMNS * SCALE;
-  canvas.height = H * ROWS * SCALE;
+  canvas.width = Math.round(W * CARD_COLUMNS * scale);
+  canvas.height = Math.round(H * ROWS * scale);
   const ctx = canvas.getContext("2d");
+  /* The scale, once, on the context: everything after this is the design's own
+     numbers, at whatever size the sheet is being drawn. */
+  ctx.scale(scale, scale);
 
   CARDS.forEach((card, i) => {
     const column = i % CARD_COLUMNS;

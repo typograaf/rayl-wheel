@@ -120,6 +120,21 @@ export class Wheel {
     }
   }
 
+  /**
+   * A different sheet, at the same coordinates.
+   *
+   * Where each card sits on it is a fraction, so a sheet drawn at four times
+   * the size is a straight swap — which is how an export gets a print with
+   * pixels in it without anything else in the tool knowing there was a change.
+   */
+  setPrint(atlas) {
+    this.atlas = atlas;
+    for (const card of this.cards) {
+      card.material.map = atlas;
+      card.material.needsUpdate = true;
+    }
+  }
+
   /** The colour and finish of every card, which is one surface and not many. */
   setSurface({ colour, roughness, sheen, coat }) {
     for (const card of this.cards) {

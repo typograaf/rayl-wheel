@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { loadCard } from "./card.js";
-import { cardAtlas } from "./cardart.js";
+import { cardAtlas, PRINT_SCALE, CARD_COLUMNS } from "./cardart.js";
 import { Wheel, CARD_HEIGHT } from "./wheel.js";
 import { backdrop, Lighting } from "./environment.js";
 import { mountTrack } from "./track.js";
@@ -10,6 +10,8 @@ import {
   exportName,
   savePNG,
   saveMP4,
+  saveFrames,
+  chooseFolder,
   mp4Supported,
   evenSize,
 } from "./save.js";
@@ -122,6 +124,10 @@ let began = 0;
    so the live loop stands off until it is finished. */
 let busy = false;
 let cancel = false;
+
+/* How much print the sheet on the cards has, in canvas pixels per design unit.
+   It goes up for an export and comes back down after one. */
+let printed = PRINT_SCALE;
 let needs = true;
 const mark = () => {
   needs = true;
@@ -324,9 +330,9 @@ function pushPanel() {
 /* Frames a second and a bitrate are a video's, and a control that does nothing
    is worse than no control. */
 function showFormat() {
-  const video = params.format === "mp4";
-  document.getElementById("fpsRow").hidden = !video;
-  document.getElementById("bitrateRow").hidden = !video;
+  const moving = params.format !== "png";
+  document.getElementById("fpsRow").hidden = !moving;
+  document.getElementById("bitrateRow").hidden = params.format !== "mp4";
 }
 
 function mountPanel() {
@@ -543,6 +549,37 @@ canvas.addEventListener("pointercancel", release);
  * H.264 encodes in macroblocks over a half-resolution chroma plane, and a still
  * loses nothing by matching it.
  */
+/**
+ * How finely the print has to be drawn for a picture this wide.
+ *
+ * The card takes `fill` of the frame, so a frame six thousand pixels across
+ * puts five and a half thousand pixels along a card that is 330 units in the
+ * design — and the sheet needs one for each of them or the design is a blur
+ * with the right colours in it. That is the whole reason the print is drawn
+ * here rather than exported as a PNG, so it would be a shame not to use it.
+ *
+ * Capped at what the driver will hold: three cards across at this scale is the
+ * wide side of the sheet, and asking for a texture past the limit fails at the
+ * upload rather than at the ask.
+ */
+function printFor(width) {
+  const wanted = Math.ceil((width * params.fill) / 330);
+  const limit = Math.floor(
+    renderer.capabilities.maxTextureSize / (330 * CARD_COLUMNS),
+  );
+  return Math.min(Math.max(wanted, PRINT_SCALE), limit);
+}
+
+/** Redraw the sheet at a new scale, or keep the one that is up. */
+async function reprint(scale) {
+  if (scale === printed) return null;
+  const was = wheel.atlas;
+  const atlas = await cardAtlas(scale);
+  wheel.setPrint(atlas);
+  printed = scale;
+  return was;
+}
+
 function exportSize() {
   const width = Math.round(params.width);
   return evenSize(width, Math.round(width / FRAME));
@@ -573,9 +610,27 @@ async function beginExport() {
 
   const button = document.getElementById("export");
   const video = params.format === "mp4";
+  const sequence = params.format === "frames";
   if (video && !mp4Supported()) {
     setStatus("this browser has no video encoder");
     return;
+  }
+
+  /*
+   * The folder first, before anything is drawn.
+   *
+   * A picker needs the click that opened it, and everything below this — a
+   * sheet redrawn at export size, a renderer resized — takes long enough to
+   * spend that click. Asked for last, the browser refuses to open it at all.
+   */
+  let folder = null;
+  if (sequence) {
+    folder = await chooseFolder();
+    if (folder === undefined) {
+      setStatus("this browser cannot pick a folder — try PNG or MP4");
+      return;
+    }
+    if (folder === null) return;
   }
 
   const resume = playing;
@@ -591,6 +646,11 @@ async function beginExport() {
      the number of pixels in the file, whatever screen it was framed on. */
   renderer.setPixelRatio(1);
   renderer.setSize(size.width, size.height, false);
+
+  /* And the design drawn to match, so what comes out is the card at that size
+     rather than the preview's card stretched to it. */
+  setStatus(`drawing the print for ${size.width}x${size.height}`);
+  const preview = await reprint(printFor(size.width));
 
   try {
     if (video) {
@@ -616,6 +676,32 @@ async function beginExport() {
           ? `${name}.mp4 · ${Math.round(bytes / 1e5) / 10}MB`
           : "recording cancelled",
       );
+    } else if (sequence) {
+      /* Every frame the way the still comes out: on nothing, since a sequence
+         is for putting over something else. */
+      scene.background = null;
+      try {
+        const written = await saveFrames({
+          folder,
+          canvas,
+          draw: drawExport,
+          fps: Math.round(params.fps),
+          seconds: params.seconds,
+          name,
+          onProgress: (done, total) =>
+            setStatus(
+              `writing ${size.width}x${size.height} · ${done}/${total} frames`,
+            ),
+          shouldStop: () => cancel,
+        });
+        setStatus(
+          cancel
+            ? `stopped after ${written} frames`
+            : `${written} frames · ${size.width}x${size.height} · transparent`,
+        );
+      } finally {
+        scene.background = sheet;
+      }
     } else {
       /*
        * A still comes out on nothing.
@@ -642,6 +728,14 @@ async function beginExport() {
     busy = false;
     cancel = false;
     button.textContent = "Export";
+    /* The big sheet goes back where it came from: it is tens of megabytes of
+       texture and the preview has no use for it. */
+    if (preview) {
+      const big = wheel.atlas;
+      wheel.setPrint(preview);
+      printed = PRINT_SCALE;
+      big.dispose();
+    }
     renderer.setPixelRatio(ratio);
     resize();
     if (resume) play();
@@ -754,4 +848,16 @@ window.rayl = {
      instant drawn — which is how a seam is looked for without an encoder. */
   pose: (time) => poseAt(time),
   draw: (time) => drawExport(time),
+  /* The sequence, against any folder-shaped thing — the picker itself is the
+     one line of this a test cannot click. */
+  frames: (folder) =>
+    saveFrames({
+      folder,
+      canvas,
+      draw: drawExport,
+      fps: Math.round(params.fps),
+      seconds: params.seconds,
+      name: exportName(params.projection),
+    }),
+  printScale: () => printed,
 };

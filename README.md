@@ -211,9 +211,17 @@ would not close.
 
 ## Getting it out
 
-A still or the loop, at whatever width is asked for — the height follows, since
-the frame has one shape and a height that disagreed with it would be a letterbox
-around the thing being judged.
+A still, the loop, or the loop as numbered frames — at whatever width is asked
+for. The height follows, since the frame has one shape and a height that
+disagreed with it would be a letterbox around the thing being judged.
+
+**And the print is redrawn to match it.** A card takes most of the frame, so a
+six-thousand pixel export puts thousands of pixels along something the design
+draws at 330 units — and a sheet cut for the preview would be a blur with the
+right colours in it. The design is drawn rather than exported precisely so that
+it does not have to be: the sheet is redrawn at a pixel per pixel for the size
+being written, used, and dropped again, since it is tens of megabytes of texture
+that a preview has no use for. Capped at what the driver will hold.
 
 **The still comes out on nothing.** Which is the point of exporting one: it goes
 into a layout, over a colour somebody else picks. The backdrop is in the picture
@@ -227,6 +235,13 @@ encoder frame by frame, rather than recorded off the wall clock: the file holds
 the motion that was authored instead of whatever the machine managed to paint.
 See record.js, where the argument against MediaRecorder is made properly. A
 second press of the button cancels.
+
+**Frames** writes the same loop as numbered stills into a folder you pick, and
+it is the export a compositor actually wants: an MP4 spends eight bits of 4:2:0
+chroma on a gradient of near whites and has no alpha channel at all, while these
+are the transparent frames the still export writes, in order. The folder is asked
+for first, before anything is drawn — a picker needs the click that opened it,
+and redrawing the sheet at export size takes long enough to spend that click.
 
 ## The link
 

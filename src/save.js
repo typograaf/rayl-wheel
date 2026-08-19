@@ -58,6 +58,62 @@ export async function savePNG({ canvas, draw, name }) {
 }
 
 /**
+ * Somewhere to put a sequence.
+ *
+ * Asked for before anything is rendered, because the picker needs the click
+ * that opened it — a folder chosen after a frame has been drawn is a folder the
+ * browser will not offer. Comes back null if the person cancels, and undefined
+ * on a browser without the API, which the caller tells apart.
+ */
+export async function chooseFolder() {
+  if (typeof window.showDirectoryPicker !== "function") return undefined;
+  try {
+    return await window.showDirectoryPicker({ mode: "readwrite" });
+  } catch {
+    // the picker was dismissed, which is an answer and not a failure
+    return null;
+  }
+}
+
+/**
+ * The loop as a numbered sequence of stills, into a folder chosen once.
+ *
+ * Which is the export a compositor actually wants, and the one an MP4 cannot
+ * be: eight bits of 4:2:0 chroma spent on a gradient of near whites, and no
+ * alpha channel at all. These are the same transparent frames the still export
+ * writes, numbered so they read back in order.
+ */
+export async function saveFrames({
+  folder,
+  canvas,
+  draw,
+  fps,
+  seconds,
+  name,
+  onProgress,
+  shouldStop,
+}) {
+  const total = Math.max(1, Math.round(fps * seconds));
+  let written = 0;
+  for (let i = 0; i < total; i++) {
+    if (shouldStop && shouldStop()) break;
+    draw(i / fps);
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/png"),
+    );
+    if (!blob) throw new Error("a frame came back empty");
+    const file = `${name}_${String(i + 1).padStart(4, "0")}.png`;
+    const handle = await folder.getFileHandle(file, { create: true });
+    const stream = await handle.createWritable();
+    await stream.write(blob);
+    await stream.close();
+    written++;
+    if (onProgress) onProgress(written, total);
+  }
+  return written;
+}
+
+/**
  * One turn of the loop, as an MP4.
  *
  * `draw(time)` is handed seconds into the loop and has to leave that instant on

@@ -466,6 +466,78 @@ if (await page.evaluate(() => typeof VideoEncoder !== "undefined")) {
   console.log("  --   no video encoder in this browser, skipping the loop");
 }
 
+/*
+ * The print is drawn for the size being written, not for the preview.
+ *
+ * A card takes most of the frame, so a six-thousand pixel export puts thousands
+ * of pixels along something the design draws at 330 units. The sheet has to be
+ * redrawn with a pixel for each of them — which is the whole reason the design
+ * is drawn here rather than exported as a picture.
+ */
+await set("format", "png");
+await set("width", 2640);
+const scales = [];
+const watching = setInterval(async () => {
+  try {
+    scales.push(await page.evaluate(() => window.rayl.printScale()));
+  } catch {
+    // the page is busy; the next tick will do
+  }
+}, 40);
+await page.click("#export");
+await waitFor(() =>
+  page.evaluate(() =>
+    /png/.test(document.getElementById("status").textContent),
+  ),
+);
+clearInterval(watching);
+await wait(300);
+const peak = Math.max(...scales, 0);
+check("the print is redrawn for a big export", peak >= 7, `reached ${peak}x`);
+check(
+  "and comes back down after it",
+  (await page.evaluate(() => window.rayl.printScale())) === 3,
+  "the big sheet is still on the cards",
+);
+
+/* A sequence, into a folder. The picker itself is the one line of this that
+   cannot be clicked from a test, so what is checked is everything after it. */
+await set("seconds", 1);
+await set("fps", 12);
+const sequence = await page.evaluate(async () => {
+  const written = [];
+  const folder = {
+    getFileHandle: async (name) => ({
+      createWritable: async () => ({
+        write: async (blob) => written.push({ name, size: blob.size }),
+        close: async () => {},
+      }),
+    }),
+  };
+  const count = await window.rayl.frames(folder);
+  return {
+    count,
+    names: written.map((w) => w.name),
+    sizes: written.map((w) => w.size),
+  };
+});
+check(
+  "a sequence comes out a frame at a time",
+  sequence.count === 12,
+  `${sequence.count} frames`,
+);
+check(
+  "numbered in order",
+  /_0001\.png$/.test(sequence.names[0]) &&
+    /_0012\.png$/.test(sequence.names[11]),
+  sequence.names[0] + " ... " + sequence.names[11],
+);
+check(
+  "and every frame has something in it",
+  sequence.sizes.every((size) => size > 5000),
+  `smallest ${Math.min(...sequence.sizes)} bytes`,
+);
+
 /* ------------------------------------------------------------- the link --- */
 
 await set("motion", "cycle");
