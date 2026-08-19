@@ -4,6 +4,15 @@ import { cardAtlas } from "./cardart.js";
 import { Wheel, CARD_HEIGHT } from "./wheel.js";
 import { backdrop, Lighting } from "./environment.js";
 import { mountTrack } from "./track.js";
+import { CURVES, loopAt } from "./ease.js";
+import { serialize, deserialize } from "./settings.js";
+import {
+  exportName,
+  savePNG,
+  saveMP4,
+  mp4Supported,
+  evenSize,
+} from "./save.js";
 
 /**
  * The wheel, in a browser tab.
@@ -38,6 +47,18 @@ const DEFAULTS = {
   light: 2.4,
   shadow: 0.45,
   snap: "snap",
+  /* The loop: which way it runs, how many cards it covers, how long it takes,
+     and the curve it does it on. */
+  motion: "cycle",
+  travel: 6,
+  seconds: 6,
+  curve: "In & Out",
+  /* And what comes out of it. Width alone, because the frame has one shape and
+     a height that disagreed with it would be a letterbox. */
+  format: "png",
+  width: 990,
+  fps: 30,
+  bitrate: 12,
   /* Opened part-way down the list rather than at the top of it: at nought the
      wheel is a card and an empty frame, which is the truth about the first item
      in a list and tells you nothing about the wheel. */
@@ -46,17 +67,35 @@ const DEFAULTS = {
 
 const params = { ...DEFAULTS };
 
+/*
+ * And then the link does, if there is one.
+ *
+ * Read here rather than after the panel is up, so the tool comes up in the
+ * state that was asked for instead of coming up in the default one and jumping.
+ * The controls are already in the document — they are markup, not built — so
+ * their own limits are available to check the string against.
+ */
+Object.assign(params, deserialize(window.location.hash, params));
+
 const canvas = document.getElementById("stage");
 const frame = document.querySelector(".frame");
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+/* Alpha, for the sake of one thing: a still that comes out on nothing. The
+   backdrop is a scene background rather than a clear colour, so taking it off
+   leaves the cards standing on transparency without touching anything else. */
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: true,
+});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.background = backdrop();
+const sheet = backdrop();
+scene.background = sheet;
 
 const lighting = new Lighting(renderer, scene);
 
@@ -72,6 +111,17 @@ let wheel = null;
 let target = params.scroll;
 let at = params.scroll;
 let settling = 0;
+
+/* The loop, when it is running: where it started, how far into it we are, and
+   whether it is running at all. */
+let playing = false;
+let clock = 0;
+let began = 0;
+
+/* An export owns the renderer while it runs — its own size, its own frames —
+   so the live loop stands off until it is finished. */
+let busy = false;
+let cancel = false;
 let needs = true;
 const mark = () => {
   needs = true;
@@ -137,6 +187,50 @@ function place() {
   camera.lookAt(0, 0, 0);
 }
 
+/** Everything the wheel needs except where it is, which changes per frame. */
+const shape = () => ({
+  radius: params.radius,
+  spacing: params.spacing,
+  arc: params.arc,
+  fade: params.fade,
+  thickness: params.depth,
+  cycle: cycling(),
+});
+
+/* A cycling wheel is endless: the list wraps, so it can be turned for as long
+   as you like and a loop that travels a whole number of cards comes back to
+   where it started. Ping-pong runs out and back along a list that ends. */
+const cycling = () => params.motion === "cycle";
+
+/** How far the scroll can be taken, which the wrap changes. */
+const span = () =>
+  wheel ? (cycling() ? wheel.cards.length : wheel.span()) : 0;
+
+/*
+ * The address bar, kept in step with the panel.
+ *
+ * Debounced, because a drag is one change made two hundred times: the string is
+ * written once the hand has stopped rather than once a frame. Not while the
+ * loop is running — a wheel turning on its own would rewrite the link twice a
+ * second for as long as it was left playing, and where a loop happens to have
+ * got to is not a setting.
+ */
+let pending = 0;
+function record() {
+  clearTimeout(pending);
+  pending = setTimeout(() => {
+    if (playing || busy) return;
+    history.replaceState(null, "", `#${serialize(params)}`);
+  }, 400);
+}
+
+/** What the tool has to say, which is never much. */
+function setStatus(text) {
+  const box = document.getElementById("status");
+  box.textContent = text || "";
+  box.hidden = !text;
+}
+
 /** How tall a card is on screen, in css pixels — what a drag is measured in. */
 function cardPixels() {
   const height = 1 / params.fill / FRAME;
@@ -163,6 +257,7 @@ function bindSlider(id, key, decimals = 2, after) {
     params[key] = parseFloat(input.value);
     refresh();
     if (after) after();
+    record();
     mark();
   });
   sliders.set(key, { input, refresh });
@@ -182,6 +277,7 @@ function bindSelect(name, after) {
       params[name] = button.dataset.value;
       show();
       if (after) after();
+      record();
       mark();
     });
   }
@@ -192,11 +288,11 @@ function bindSelect(name, after) {
 /* The scroll runs from the first card to the last, so its own track has to be
    recut whenever there are more or fewer of them. */
 function relimit() {
-  const span = wheel ? wheel.span() : 0;
+  const end = span();
   const input = document.getElementById("scroll");
-  input.max = String(span);
-  target = Math.min(target, span);
-  at = Math.min(at, span);
+  input.max = String(end);
+  target = Math.min(target, end);
+  at = Math.min(at, end);
   params.scroll = at;
   input.value = String(at);
   sliders.get("scroll").refresh();
@@ -215,6 +311,22 @@ function pushSurface() {
 function pushLighting() {
   lighting.set(params.rig, params.light);
   lighting.setShadow(params.shadow);
+}
+
+/** Every control told what the state says, which a link or a reset both need. */
+function pushPanel() {
+  for (const [key, control] of sliders) {
+    if (control.input) control.input.value = String(params[key]);
+    control.refresh();
+  }
+}
+
+/* Frames a second and a bitrate are a video's, and a control that does nothing
+   is worse than no control. */
+function showFormat() {
+  const video = params.format === "mp4";
+  document.getElementById("fpsRow").hidden = !video;
+  document.getElementById("bitrateRow").hidden = !video;
 }
 
 function mountPanel() {
@@ -243,6 +355,7 @@ function mountPanel() {
   colour.addEventListener("input", () => {
     params.colour = colour.value;
     pushSurface();
+    record();
     mark();
   });
   sliders.set("colour", {
@@ -257,27 +370,47 @@ function mountPanel() {
 
   bindSelect("snap");
   bindSlider("scroll", "scroll", 2, () => {
+    if (playing) stop();
     target = params.scroll;
     at = params.scroll;
     settling = 0;
   });
 
+  /* The list's length changes with the wrap, so the scroll's own track is recut
+     when the loop's mode is. */
+  bindSelect("motion", relimit);
+  bindSlider("travel", "travel", 0);
+  bindSlider("seconds", "seconds", 1);
+  bindSelect("curve");
+  document.getElementById("play").addEventListener("click", () => {
+    if (playing) stop();
+    else play();
+  });
+
+  bindSelect("format", showFormat);
+  bindSlider("width", "width", 0);
+  bindSlider("fps", "fps", 0);
+  bindSlider("bitrate", "bitrate", 0);
+  document.getElementById("export").addEventListener("click", beginExport);
+
   document.getElementById("lensRow").hidden = params.projection === "isometric";
+  showFormat();
 
   document.getElementById("reset").addEventListener("click", () => {
     Object.assign(params, DEFAULTS);
-    for (const [key, control] of sliders) {
-      if (control.input) control.input.value = String(params[key]);
-      control.refresh();
-    }
+    pushPanel();
     wheel.setCount(Math.round(params.count));
+    if (playing) stop();
     target = at = params.scroll;
     document.getElementById("lensRow").hidden =
       params.projection === "isometric";
+    showFormat();
+    setStatus("");
     place();
     pushSurface();
     pushLighting();
     relimit();
+    record();
     mark();
   });
 }
@@ -293,11 +426,81 @@ function mountPanel() {
  * whichever thing happened to be touched.
  */
 function turn(by) {
-  const span = wheel ? wheel.span() : 0;
-  target = Math.min(Math.max(target + by, 0), span);
+  /* A hand on the wheel takes it off the loop. Anything else is two things
+     driving one number, and the one you are holding loses. */
+  if (playing) stop();
+  target += by;
+  if (cycling()) {
+    /*
+     * The picture at n and at n plus a listful are the same picture, so the
+     * number can be brought back inside the list without anything moving — as
+     * long as where it *is* comes back with where it is *going*, or the catch
+     * up would run the whole way round.
+     */
+    const period = wheel.cards.length;
+    while (target > period) {
+      target -= period;
+      at -= period;
+    }
+    while (target < 0) {
+      target += period;
+      at += period;
+    }
+  } else {
+    target = Math.min(Math.max(target, 0), wheel.span());
+  }
   settling = 0;
+  record();
   mark();
 }
+
+/**
+ * Where the wheel is, this far into the loop.
+ *
+ * No spring: a spring is a transient and a transient in a loop is a seam. The
+ * phase goes through the curve and comes out as a distance travelled, which is
+ * the same answer for the live picture and for the frame being encoded — they
+ * are one animation saved two ways.
+ */
+function poseAt(time) {
+  const curve = CURVES[params.curve] || CURVES.Linear;
+  const gone =
+    params.travel *
+    loopAt(
+      time / Math.max(params.seconds, 0.1),
+      curve,
+      params.motion === "pong",
+    );
+  const where = began + gone;
+  return cycling() ? where : Math.min(Math.max(where, 0), wheel.span());
+}
+
+function play() {
+  began = at;
+  clock = 0;
+  playing = true;
+  document.getElementById("play").textContent = "Pause";
+  mark();
+}
+
+function stop() {
+  playing = false;
+  target = at;
+  settling = 0;
+  record();
+  document.getElementById("play").textContent = "Play";
+  mark();
+}
+
+/* Space, because a transport is a transport. Not while a number is being typed
+   into, where a space is a space. */
+window.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" || busy) return;
+  if (e.target instanceof HTMLInputElement) return;
+  e.preventDefault();
+  if (playing) stop();
+  else play();
+});
 
 canvas.addEventListener(
   "wheel",
@@ -329,6 +532,122 @@ const release = (e) => {
 canvas.addEventListener("pointerup", release);
 canvas.addEventListener("pointercancel", release);
 
+/* ------------------------------------------------------------ the export --- */
+
+/**
+ * The picture, at the size it was asked for rather than the size it is being
+ * previewed at.
+ *
+ * Width alone: the frame has one shape, and a height that disagreed with it
+ * would be a letterbox around the thing being judged. Even numbers because
+ * H.264 encodes in macroblocks over a half-resolution chroma plane, and a still
+ * loses nothing by matching it.
+ */
+function exportSize() {
+  const width = Math.round(params.width);
+  return evenSize(width, Math.round(width / FRAME));
+}
+
+/**
+ * One frame of whatever is being written, at whatever instant it is for.
+ *
+ * A still is the pose on screen; a loop is the pose the clock asks for. Either
+ * way the wheel is put there outright and drawn in the same turn, because the
+ * encoder reads this canvas immediately afterwards and nothing may be left
+ * pending on it.
+ */
+function drawExport(time) {
+  const where = time == null ? at : poseAt(time);
+  wheel.update({ ...shape(), scroll: where });
+  renderer.render(scene, camera);
+}
+
+async function beginExport() {
+  /* A second press is a cancel: the button says so, and a recording is the one
+     thing here long enough to want out of. */
+  if (busy) {
+    cancel = true;
+    setStatus("stopping");
+    return;
+  }
+
+  const button = document.getElementById("export");
+  const video = params.format === "mp4";
+  if (video && !mp4Supported()) {
+    setStatus("this browser has no video encoder");
+    return;
+  }
+
+  const resume = playing;
+  if (playing) stop();
+
+  const size = exportSize();
+  const ratio = renderer.getPixelRatio();
+  const name = exportName(params.projection);
+  busy = true;
+  cancel = false;
+  button.textContent = "Cancel";
+  /* Pixel ratio of one and the style left alone: the number in the panel is
+     the number of pixels in the file, whatever screen it was framed on. */
+  renderer.setPixelRatio(1);
+  renderer.setSize(size.width, size.height, false);
+
+  try {
+    if (video) {
+      began = at;
+      setStatus(`recording ${size.width}x${size.height}`);
+      const bytes = await saveMP4({
+        canvas,
+        width: size.width,
+        height: size.height,
+        fps: Math.round(params.fps),
+        seconds: params.seconds,
+        quality: Math.round(params.bitrate),
+        draw: drawExport,
+        onProgress: (done, total) =>
+          setStatus(
+            `recording ${size.width}x${size.height} · ${done}/${total} frames`,
+          ),
+        shouldStop: () => cancel,
+        name,
+      });
+      setStatus(
+        bytes
+          ? `${name}.mp4 · ${Math.round(bytes / 1e5) / 10}MB`
+          : "recording cancelled",
+      );
+    } else {
+      /*
+       * A still comes out on nothing.
+       *
+       * Which is the point of exporting one: it goes into a layout, over a
+       * colour somebody else chooses. The sheet is in the picture on screen
+       * because that is what the cards are photographed against, and out of the
+       * file because a background baked into a PNG is a background you cannot
+       * take off. A video keeps it — H.264 has no alpha to carry, so a frame
+       * has to arrive already sitting on something.
+       */
+      scene.background = null;
+      try {
+        await savePNG({ canvas, draw: () => drawExport(null), name });
+      } finally {
+        scene.background = sheet;
+      }
+      setStatus(`${name}.png · ${size.width}x${size.height} · transparent`);
+    }
+  } catch (error) {
+    console.error("Rayl Wheel: could not export", error);
+    setStatus(`export failed: ${error.message}`);
+  } finally {
+    busy = false;
+    cancel = false;
+    button.textContent = "Export";
+    renderer.setPixelRatio(ratio);
+    resize();
+    if (resume) play();
+  }
+}
+
 /* ------------------------------------------------------------- the frame --- */
 
 let last = performance.now();
@@ -337,7 +656,15 @@ function tick(now) {
   requestAnimationFrame(tick);
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
-  if (!wheel) return;
+  if (!wheel || busy) return;
+
+  /* Running, the loop says where the wheel is and nothing else gets a say. */
+  if (playing) {
+    clock += dt;
+    at = poseAt(clock);
+    target = at;
+    mark();
+  }
 
   /*
    * Catching up, at a rate that does not depend on the frame rate.
@@ -346,7 +673,7 @@ function tick(now) {
    * one; this is the same one on both — a fixed share of the remaining
    * distance per second, however many frames that second was cut into.
    */
-  const gap = target - at;
+  const gap = playing ? 0 : target - at;
   if (Math.abs(gap) > 1e-4) {
     at += gap * (1 - Math.pow(0.0015, dt));
     mark();
@@ -357,7 +684,7 @@ function tick(now) {
 
   /* Snapping is what happens when nothing else is: a card the scroll has been
      left near becomes the card it is on, once the hand is off it. */
-  if (params.snap === "snap" && !dragging) {
+  if (params.snap === "snap" && !dragging && !playing) {
     settling += dt;
     const rest = Math.round(target);
     if (settling > 0.12 && rest !== target) {
@@ -369,21 +696,14 @@ function tick(now) {
   if (Math.abs(params.scroll - at) > 0.005) {
     params.scroll = at;
     const control = sliders.get("scroll");
-    control.input.value = String(at);
+    control.input.value = String(Math.min(Math.max(at, 0), span()));
     control.refresh();
   }
 
   if (!needs) return;
   needs = false;
 
-  wheel.update({
-    radius: params.radius,
-    spacing: params.spacing,
-    arc: params.arc,
-    fade: params.fade,
-    scroll: at,
-    thickness: params.depth,
-  });
+  wheel.update({ ...shape(), scroll: at });
   renderer.render(scene, camera);
 }
 
@@ -399,6 +719,11 @@ async function start() {
   wheel.setCount(Math.round(params.count));
 
   mountPanel();
+  /* The panel is markup, so it opens showing the defaults; whatever the link
+     asked for is put into it here, once there is something to bind it to. */
+  pushPanel();
+  showFormat();
+  document.getElementById("lensRow").hidden = params.projection === "isometric";
   pushSurface();
   pushLighting();
   relimit();
@@ -425,4 +750,8 @@ window.rayl = {
   get camera() {
     return camera;
   },
+  /* The two the suite needs: where the loop is at a given instant, and that
+     instant drawn — which is how a seam is looked for without an encoder. */
+  pose: (time) => poseAt(time),
+  draw: (time) => drawExport(time),
 };

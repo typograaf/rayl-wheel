@@ -139,15 +139,24 @@ export class Wheel {
    * the same spacing is a flatter run of the same list, rather than the same
    * curve with the cards further apart.
    */
-  update({ radius, spacing, arc, fade, scroll, thickness }) {
+  update({ radius, spacing, arc, fade, scroll, thickness, cycle }) {
     const R = Math.max(radius, 0.2) * CARD_HEIGHT;
     const step = (CARD_HEIGHT * (1 + spacing)) / R;
     const limit = arc * RADIANS;
     const soft = Math.max(fade * RADIANS, 1e-4);
+    const count = this.cards.length;
 
-    for (let i = 0; i < this.cards.length; i++) {
+    for (let i = 0; i < count; i++) {
       const card = this.cards[i];
-      const theta = (scroll - i) * step;
+      /*
+       * Cycling, a card stands at its nearest repeat rather than at its one
+       * place in the list — which is what makes a finite list endless without
+       * a second set of cards to draw. The arc holds five or six of them and
+       * there are a dozen, so the nearest repeat is the only one that could be
+       * on screen anyway.
+       */
+      const place = cycle ? i + Math.round((scroll - i) / count) * count : i;
+      const theta = (scroll - place) * step;
       if (Math.abs(theta) >= limit) {
         card.visible = false;
         continue;
@@ -160,7 +169,23 @@ export class Wheel {
       const over = Math.abs(theta) - (limit - soft);
       const opacity = over <= 0 ? 1 : Math.max(0, 1 - over / soft);
       card.material.opacity = opacity;
-      card.material.transparent = opacity < 0.999;
+
+      /*
+       * And the material is told when that changes it from solid to not.
+       *
+       * `transparent` is not a switch three reads at draw time: it is baked
+       * into the program as OPAQUE, which makes the shader write an alpha of
+       * one whatever the opacity says. Flipped without asking for a recompile,
+       * a card that has started to fade goes on being drawn by the program it
+       * was solid under — and it stays solid, at the edge of the arc, where the
+       * whole point of it is to leave. Only on the change, because a recompile
+       * every frame is a recompile every frame.
+       */
+      const veiled = opacity < 0.999;
+      if (card.material.transparent !== veiled) {
+        card.material.transparent = veiled;
+        card.material.needsUpdate = true;
+      }
       /* A card that has faded out casts no shadow either, or the light shows
          something the picture does not. */
       card.castShadow = opacity > 0.02;

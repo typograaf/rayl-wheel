@@ -75,6 +75,12 @@ const browser = await puppeteer.launch({
   defaultViewport: { width: 1280, height: 900 },
 });
 const page = await browser.newPage();
+const downloads = fs.mkdtempSync(path.join(os.tmpdir(), "rayl-wheel-"));
+const client = await page.createCDPSession();
+await client.send("Page.setDownloadBehavior", {
+  behavior: "allow",
+  downloadPath: downloads,
+});
 const thrown = [];
 page.on("pageerror", (e) => thrown.push(e.message));
 page.on("console", (m) => {
@@ -131,6 +137,32 @@ const picture = () =>
     }
     return { w, h, ink, lit };
   });
+
+/* The picture as it stands, reduced to a number. Two settings that come out
+   the same number are the same picture, which is what a loop closing means. */
+const frame = () =>
+  page.evaluate(() => {
+    window.rayl.draw(null);
+    const gl = window.rayl.renderer.getContext();
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+    const px = new Uint8Array(w * h * 4);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    let sum = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      sum = (sum * 31 + px[i] + px[i + 1] * 7 + px[i + 2] * 13) >>> 0;
+    }
+    return sum;
+  });
+
+const waitFor = async (test, ms = 30000) => {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (await test()) return true;
+    await wait(250);
+  }
+  return false;
+};
 
 const state = () =>
   page.evaluate(() => {
@@ -194,15 +226,32 @@ for (const [radius, arc] of [
   );
 }
 
-/* And nothing off the ends of the list: a wheel is a loop and a list is not. */
+/*
+ * And whether there is anything off the ends of the list is the loop's mode to
+ * say. Ping-ponging, the list ends: at nought there is nothing above the first
+ * card. Cycling, it is a ring, and the last card is exactly what is above the
+ * first — which is the whole of how a loop closes.
+ */
+await set("radius", 1.7);
+await set("arc", 82);
+await set("motion", "pong");
 await set("scroll", 0);
 await wait(400);
-const top = await state();
+const ends = await state();
 check(
-  "the list does not wrap at its start",
-  top.cards.filter((c) => c.visible).length <= top.cards.length &&
-    top.cards[top.cards.length - 1].visible === false,
+  "ping-ponging, the list ends",
+  ends.cards[ends.cards.length - 1].visible === false,
   "the last card shows above the first",
+);
+
+await set("motion", "cycle");
+await set("scroll", 0);
+await wait(400);
+const ring = await state();
+check(
+  "cycling, it is a ring",
+  ring.cards[ring.cards.length - 1].visible === true,
+  "nothing came round above the first",
 );
 
 /* A drag turns the wheel. */
@@ -255,6 +304,225 @@ check(
   "the projections differ",
   Math.abs(lens.lit - flat.lit) > 200,
   `lens ${lens.lit}, flat ${flat.lit}`,
+);
+
+/* ------------------------------------------------------------ the loop --- */
+
+await set("projection", "perspective");
+await set("scroll", 4);
+await set("snap", "free");
+await wait(400);
+
+/* Playing turns the wheel on its own, and stopping leaves it where it is. */
+await page.click("#play");
+await wait(1200);
+const running = (await state()).params.scroll;
+await page.click("#play");
+await wait(600);
+const stopped = (await state()).params.scroll;
+check(
+  "playing turns the wheel",
+  running > 4.05,
+  `reached ${running.toFixed(2)}`,
+);
+check(
+  "pausing leaves it where it is",
+  Math.abs(stopped - running) < 0.9,
+  `${running.toFixed(2)} -> ${stopped.toFixed(2)}`,
+);
+check(
+  "the button says what it will do",
+  (await page.evaluate(() =>
+    document.getElementById("play").textContent.trim(),
+  )) === "Play",
+);
+
+/* The curve is doing something: halfway through the loop an ease is not where
+   a straight line is. */
+await set("motion", "cycle");
+await set("travel", 6);
+await set("seconds", 6);
+await page.click("#play");
+await page.click("#play");
+await set("curve", "Linear");
+const straight = await page.evaluate(() => window.rayl.pose(1.5));
+await set("curve", "In & Out");
+const eased = await page.evaluate(() => window.rayl.pose(1.5));
+check(
+  "the curves shape the turn",
+  Math.abs(straight - eased) > 0.2,
+  `linear ${straight.toFixed(2)} vs eased ${eased.toFixed(2)}`,
+);
+
+/*
+ * And the loop closes.
+ *
+ * A cycle ends a whole travel further on than it started, so whether it closes
+ * is whether those two places are the same picture. The positions always are —
+ * a card stands at its nearest repeat — so what decides it is the artwork, and
+ * the sheet holds six designs. Six along is the same six cards in the same
+ * places; five along is not, which is the whole reason the default is six.
+ */
+await set("scroll", 3);
+const start = await frame();
+await set("scroll", 9);
+const sixOn = await frame();
+check("a cycle of six closes exactly", start === sixOn, `${start} vs ${sixOn}`);
+
+await set("scroll", 8);
+const fiveOn = await frame();
+check(
+  "a cycle of five does not",
+  start !== fiveOn,
+  "it closed, which it cannot",
+);
+
+/*
+ * And a card at the edge of the arc is genuinely see-through.
+ *
+ * Which is not a given: `transparent` is baked into three's shader program, so
+ * a card that flips to it without asking for a recompile goes on being drawn
+ * solid at whatever opacity it claims. That looked right in every still and
+ * only turned up as a loop that would not close.
+ */
+await set("scroll", 3);
+const faded = await page.evaluate(() => {
+  window.rayl.draw(null);
+  return window.rayl.wheel.cards
+    .filter((c) => c.visible && c.material.opacity < 0.99)
+    .map((c) => ({
+      opacity: c.material.opacity,
+      solid: !c.material.transparent,
+    }));
+});
+check(
+  "the cards at the ends really fade",
+  faded.length > 0 && faded.every((c) => !c.solid),
+  `${faded.length} fading, ${faded.filter((c) => c.solid).length} still solid`,
+);
+
+/* Ping-pong closes whatever it travels, because it ends where it turned round
+   from: the phase runs out and back over the one curve. */
+await set("motion", "pong");
+await set("travel", 3);
+await set("seconds", 6);
+await page.click("#play");
+await page.click("#play");
+const [there, midway, back] = await page.evaluate(() => [
+  window.rayl.pose(0),
+  window.rayl.pose(3),
+  window.rayl.pose(5.999),
+]);
+check(
+  "ping-pong comes back to where it started",
+  Math.abs(there - back) < 0.01 && Math.abs(midway - there) > 1,
+  `${there.toFixed(2)} -> ${midway.toFixed(2)} -> ${back.toFixed(2)}`,
+);
+
+/* ---------------------------------------------------------- the export --- */
+
+await set("motion", "cycle");
+await set("travel", 6);
+await set("format", "png");
+await set("width", 660);
+await page.click("#export");
+const png = await waitFor(() =>
+  fs.readdirSync(downloads).some((name) => name.endsWith(".png")),
+);
+const stillName = fs.readdirSync(downloads).find((n) => n.endsWith(".png"));
+check("a still comes out", png, stillName || "nothing landed");
+if (png) {
+  const bytes = fs.readFileSync(path.join(downloads, stillName));
+  /* The IHDR carries the size, sixteen bytes in, big-endian. */
+  const width = bytes.readUInt32BE(16);
+  const height = bytes.readUInt32BE(20);
+  check(
+    "at the size that was asked for",
+    width === 660 && height === 944,
+    `${width}x${height}`,
+  );
+}
+
+if (await page.evaluate(() => typeof VideoEncoder !== "undefined")) {
+  await set("format", "mp4");
+  await set("width", 330);
+  await set("seconds", 1);
+  await set("fps", 12);
+  await page.click("#export");
+  const mp4 = await waitFor(() =>
+    fs.readdirSync(downloads).some((name) => name.endsWith(".mp4")),
+  );
+  const clipName = fs.readdirSync(downloads).find((n) => n.endsWith(".mp4"));
+  check("a loop comes out", mp4, clipName || "nothing landed");
+  if (mp4) {
+    const bytes = fs.readFileSync(path.join(downloads, clipName));
+    check(
+      "and it is an mp4",
+      bytes.slice(4, 8).toString() === "ftyp",
+      `${bytes.length} bytes`,
+    );
+  }
+} else {
+  console.log("  --   no video encoder in this browser, skipping the loop");
+}
+
+/* ------------------------------------------------------------- the link --- */
+
+await set("motion", "cycle");
+await set("radius", 3.15);
+await set("rig", "Sharp");
+await wait(900);
+const link = await page.evaluate(() => window.location.hash);
+check(
+  "the link carries the state",
+  /radius=3.15/.test(link) && /rig=Sharp/.test(link),
+  link.slice(0, 80),
+);
+
+await page.goto(url + link, { waitUntil: "networkidle0" });
+await page.waitForFunction("window.rayl && window.rayl.wheel", {
+  timeout: 15000,
+});
+await wait(1500);
+const reopened = await state();
+check(
+  "and a reload comes back to it",
+  Math.abs(reopened.params.radius - 3.15) < 1e-6 &&
+    reopened.params.rig === "Sharp",
+  `radius ${reopened.params.radius}, rig ${reopened.params.rig}`,
+);
+check(
+  "with the panel showing it",
+  (await page.evaluate(() => document.getElementById("radius").value)) ===
+    "3.15" &&
+    (await page.evaluate(
+      () =>
+        document.querySelector('[data-select="rig"] .btn[data-value="Sharp"]')
+          .dataset.on,
+    )) === "true",
+  "the controls opened on the defaults",
+);
+
+/* And a still comes out on nothing, which is what taking the sheet off does. */
+const clear = await page.evaluate(() => {
+  const m = window.rayl;
+  const sheet = m.scene.background;
+  m.scene.background = null;
+  m.draw(null);
+  const gl = m.renderer.getContext();
+  const h = gl.drawingBufferHeight;
+  const px = new Uint8Array(4);
+  gl.readPixels(2, h - 3, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  m.scene.background = sheet;
+  m.draw(null);
+  const on = new Uint8Array(4);
+  gl.readPixels(2, h - 3, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, on);
+  return { off: [...px], on: [...on] };
+});
+check(
+  "a still is drawn on nothing",
+  clear.off[3] === 0 && clear.on[3] === 255,
+  `corner alpha ${clear.off[3]} without the sheet, ${clear.on[3]} with it`,
 );
 
 check("nothing was thrown", thrown.length === 0, thrown.join(" | "));

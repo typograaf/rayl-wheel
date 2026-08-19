@@ -29,6 +29,14 @@ const TROUGH = "#cecec5";
    on something 2 across is simply round. */
 const RULE = 2;
 
+/*
+ * Every icon at four fifths of the size it was cut at — node 800:8147, where
+ * the six of them are shown on the same card at their own sizes, and every one
+ * comes out at exactly 0.8 of its own artboard. They are not one size: the card
+ * in the design grows and shrinks by a few points to fit whichever it carries.
+ */
+const ICON = 0.8;
+
 /* How many canvas pixels one design unit gets. At three, the ten-point type is
    thirty pixels tall, which holds up to a card the full width of a retina
    frame. */
@@ -113,13 +121,13 @@ export const CARD_COUNT = CARDS.length;
 const ROWS = Math.ceil(CARD_COUNT / CARD_COLUMNS);
 
 /**
- * An icon, recoloured to the ink and handed back as something drawable.
+ * An icon, recoloured to the ink and handed back with the size it was cut at.
  *
  * The artwork is the file rather than anything reconstructed here, but the
- * files were cut for the long card and carry its lighter grey, so the fill is
- * rewritten on the way past. Every one is drawn 18 tall, which is the box the
- * design gives the one card it shows — a row of cards whose type starts at a
- * different height per icon is a list that flickers as it scrolls.
+ * files carry the long card's lighter grey, so the fill is rewritten on the way
+ * past. The size is read off the file's own width and height rather than the
+ * loaded image's: an SVG that is 27.5 across comes back as an integer number of
+ * pixels, and a rounded icon is a rounded icon at every size after it.
  */
 const icons = new Map();
 
@@ -134,8 +142,12 @@ function loadIcon(name) {
             /fill="#[0-9a-fA-F]{3,8}"/g,
             `fill="${INK}"`,
           );
+          const size = {
+            width: parseFloat((svg.match(/width="([\d.]+)"/) || [])[1]) || 20,
+            height: parseFloat((svg.match(/height="([\d.]+)"/) || [])[1]) || 20,
+          };
           const image = new Image();
-          image.onload = () => resolve(image);
+          image.onload = () => resolve({ image, ...size });
           // an icon that will not load is not worth failing a whole sheet over
           image.onerror = () => resolve(null);
           image.src =
@@ -186,18 +198,35 @@ function drawCard(ctx, card, ox, oy, icon) {
   ctx.translate(ox * SCALE, oy * SCALE);
 
   /* ------------------------------------------------------------ the left --- */
-  const top = PAD;
+
+  /*
+   * Measured before anything is drawn, because where the block starts depends
+   * on how tall it comes out.
+   *
+   * In the design the card is cut to its contents: an icon two points shorter
+   * makes a card two points shorter. There is one model here and it is one
+   * height, so what the design does by resizing the card this does by centring
+   * the block in it — the same distances, the same order, and no card riding
+   * high because its icon is a flat one.
+   */
+  const iconWidth = icon ? icon.width * ICON : 16;
+  const iconHeight = icon ? icon.height * ICON : 14;
+
+  setFace(ctx, 18);
+  const titleCap = capHeight(ctx) / SCALE;
+  const titleWidth = Math.max(...card.title.map((line) => widthOf(ctx, line)));
+
+  setFace(ctx, 10, 0.1);
+  const atCap = capHeight(ctx) / SCALE;
+  const atWidth = widthOf(ctx, card.at);
+
+  const height = iconHeight + 12 + (18 + titleCap) + 12 + atCap;
+  const top = (H - height) / 2;
   let y = top;
 
-  const iconHeight = 18;
-  const iconWidth = icon ? (icon.width / icon.height) * iconHeight : 21;
   if (icon) {
     ctx.drawImage(
-      icon,
-      0,
-      0,
-      icon.width,
-      icon.height,
+      icon.image,
       PAD * SCALE,
       y * SCALE,
       iconWidth * SCALE,
@@ -207,8 +236,6 @@ function drawCard(ctx, card, ox, oy, icon) {
   y += iconHeight + 12;
 
   setFace(ctx, 18);
-  const titleCap = capHeight(ctx) / SCALE;
-  const titleWidth = Math.max(...card.title.map((line) => widthOf(ctx, line)));
   card.title.forEach((line, i) => {
     /* Leading none: the second line sits a full size below the first, and the
        block is trimmed to the caps of one and the baseline of the other. */
@@ -217,8 +244,6 @@ function drawCard(ctx, card, ox, oy, icon) {
   y += 18 + titleCap + 12;
 
   setFace(ctx, 10, 0.1);
-  const atCap = capHeight(ctx) / SCALE;
-  const atWidth = widthOf(ctx, card.at);
   ctx.fillText(card.at, PAD * SCALE, (y + atCap) * SCALE);
 
   const leftWidth = Math.max(iconWidth, titleWidth, atWidth);
@@ -226,15 +251,15 @@ function drawCard(ctx, card, ox, oy, icon) {
   /* ----------------------------------------------------------- the right --- */
   const x = PAD + leftWidth + GAP;
   const right = W - PAD - x;
-  const height = H - PAD * 2;
-  /* Two rules, a trough and four gaps of six, and the two rows split the rest. */
+  /* Stretched to the block beside it, the way the design has it — two rules, a
+     trough and four gaps of six, and the two rows split what is left. */
   const row = (height - RULE * 3 - 6 * 4) / 2;
 
   bar(ctx, x, top, right, RULE, INK);
   const rowA = top + RULE + 6;
   const trough = rowA + row + 6;
   const rowB = trough + RULE + 6;
-  bar(ctx, x, H - PAD - RULE, right, RULE, INK);
+  bar(ctx, x, top + height - RULE, right, RULE, INK);
 
   bar(ctx, x, trough, right, RULE, TROUGH);
   bar(ctx, x, trough, Math.max(right * card.bar, RULE), RULE, INK);

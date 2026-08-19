@@ -101,6 +101,28 @@ body * {
   cursor: grabbing;
 }
 
+/*
+ * What the tool has to say, which is never much: how far a recording has got,
+ * and why one did not start. In the frame rather than the panel, because it is
+ * about the picture — and out of the way of it, at the design's own 8pt.
+ */
+.status {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  max-width: calc(100% - 48px);
+  font-size: 8px;
+  line-height: 1.4;
+  letter-spacing: 0.08px;
+  color: var(--ink);
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.status[hidden] {
+  display: none;
+}
+
 /* ------------------------------------------------------------- the panel --- */
 
 .panel {

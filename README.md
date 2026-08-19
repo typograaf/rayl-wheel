@@ -81,13 +81,20 @@ up — long side across, short side up, thickness towards the camera — and sca
 so the long side is exactly one unit. Every distance in the wheel is then a share
 of a card.
 
-Two things are fixed on the way out of Blender rather than worked around here.
-The mirror it was built with leaves half the faces wound inside-out, so the
-normals are made consistent before export — without which the face nearest the
-camera is the card's back, and the print lands on the side nobody can see. And a
-dissolve at one degree takes the subdivided mesh from 77,000 triangles to 3,000
-without touching the silhouette, because most of a card is flat and a flat face
-does not need geometry to say so. 69KB, against 1.7MB.
+Three things are settled on the way out of Blender rather than worked around
+here. The mirror it was built with leaves half the faces wound inside-out, so
+the normals are made consistent before export — without which the face nearest
+the camera is the card's back, and the print lands on the side nobody can see.
+The object's own scale is baked into the mesh, because it stopped being uniform
+when the card was thickened and dropping it would have kept the outline and lost
+the depth. And a dissolve at one degree takes the subdivided mesh from tens of
+thousands of triangles to seventeen hundred without touching the silhouette,
+because most of a card is flat and a flat face does not need geometry to say so.
+39KB.
+
+Re-exported from the blend with `blender -b "UI Card.blend" --python`: one
+script, three steps and no hand editing, so the next revision of the card is one
+command rather than an afternoon.
 
 ## The print
 
@@ -102,6 +109,19 @@ whatever size it is asked for, in the same Azeret the panel is set in — which
 also means the type is _measured_ rather than assumed: the left column is as wide
 as its own longest line, so a longer job title moves the block beside it instead
 of running under it.
+
+**The icons are the size they were cut at, times four fifths** — node 800:8147,
+where all six are shown on the same card and every one comes out at exactly 0.8
+of its own artboard. They are not one size and must not be made one: a 24x10
+mark and a 16x16 mark are different drawings, and normalising them to a common
+height is the sort of tidying that quietly redraws somebody's artwork.
+
+Which leaves one thing the design does that a single model cannot. There the
+card is cut to its contents, so an icon two points shorter makes a card two
+points shorter; here there is one card and it is one height. So what the design
+does by resizing the card, this does by centring the block in it — the same
+distances in the same order, and no card riding high because its icon happens to
+be a flat one.
 
 It comes out on nothing. The card is not drawn, only the marks on it, so the
 sheet's alpha is where the ink is and the card underneath goes on being a
@@ -160,3 +180,65 @@ touched. Snapping is what happens when nothing else is: a card the scroll was
 left near becomes the card it is on, once the hand is off it.
 
 Nothing renders unless something moved.
+
+## The loop
+
+Or it turns itself. Play — or space — runs the wheel through a travel measured
+in cards, over a duration measured in seconds, on one of the three curves the
+short panel offers: in and out, out and in, or straight. The same control points
+the long tool's editor holds, offered as three buttons, because this is a tool
+for deciding how a wheel turns and not for authoring an easing.
+
+No spring while it runs. A spring is a transient and a transient in a loop is a
+seam, so the clock says where the wheel is outright — the same answer for the
+picture on screen and for the frame being encoded, which are one animation saved
+two ways. A hand on the wheel takes it off the loop, because two things driving
+one number is one thing too many and the one you are holding should win.
+
+**Ping-pong** runs out and back along a list that ends, and closes whatever it
+travels: it finishes where it turned round from. **Cycle** makes the list a
+ring — a card stands at its nearest repeat, so the wheel can be turned for as
+long as you like — and closes when the travel is a multiple of six, because the
+sheet holds six designs and six along is the same six cards in the same places.
+Which is why it opens at six. Five along is a loop with a jump in it, and the
+suite checks both halves of that so it stays true.
+
+Asking that question found a real bug, too. `transparent` is baked into three's
+shader program as OPAQUE, so a card that started to fade without asking for a
+recompile went on being drawn solid at the edge of the arc, at whatever opacity
+it claimed. It looked right in every still. It only showed up as a loop that
+would not close.
+
+## Getting it out
+
+A still or the loop, at whatever width is asked for — the height follows, since
+the frame has one shape and a height that disagreed with it would be a letterbox
+around the thing being judged.
+
+**The still comes out on nothing.** Which is the point of exporting one: it goes
+into a layout, over a colour somebody else picks. The backdrop is in the picture
+on screen because that is what the cards are photographed against, and out of the
+file because a background baked into a PNG is a background you cannot take off.
+The video keeps it — H.264 has no alpha to carry, so a frame has to arrive
+already sitting on something.
+
+The loop is stepped at a fixed 1/fps and handed to the browser's own H.264
+encoder frame by frame, rather than recorded off the wall clock: the file holds
+the motion that was authored instead of whatever the machine managed to paint.
+See record.js, where the argument against MediaRecorder is made properly. A
+second press of the button cancels.
+
+## The link
+
+Every control writes itself into the address bar, so a reload comes back to the
+picture that was on screen and a link is a look somebody else can open.
+
+Everything goes in, including whatever happens to be at its default — a string
+that carries only what was changed reads better and means less, since the day a
+default moves, every link written before it quietly becomes a different picture.
+It is read back forgivingly, though: each value is checked against the control
+that owns it, so a link cannot ask for a count of nine thousand or a rig nobody
+built, and one stale key does not take the rest of the string down with it.
+
+Written on a debounce and with `replaceState`, so dragging a slider leaves one
+entry in the address bar rather than two hundred in the back button.

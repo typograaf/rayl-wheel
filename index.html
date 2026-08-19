@@ -16,6 +16,7 @@
   <body class="starting">
     <main class="frame">
       <canvas id="stage"></canvas>
+      <output class="status" id="status" aria-live="polite" hidden></output>
     </main>
 
     <aside class="panel">
@@ -286,6 +287,156 @@
                 <input class="nub" id="scrollOut" value="4" readonly />
               </span>
             </label>
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Loop</h2>
+          <div class="rows">
+            <div class="segmented" data-select="motion">
+              <button
+                type="button"
+                class="btn"
+                data-value="pong"
+                data-span="half"
+              >
+                Ping-Pong
+              </button>
+              <button
+                type="button"
+                class="btn"
+                data-value="cycle"
+                data-span="half"
+              >
+                Cycle
+              </button>
+            </div>
+            <label class="ctl" id="travelRow">
+              <span>Travel</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="travel"
+                  min="1"
+                  max="12"
+                  step="1"
+                  value="6"
+                />
+                <input class="nub" id="travelOut" value="6" readonly />
+              </span>
+            </label>
+            <label class="ctl" id="secondsRow">
+              <span>Duration</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="seconds"
+                  min="1"
+                  max="20"
+                  step="0.5"
+                  value="6"
+                />
+                <input class="nub" id="secondsOut" value="6" readonly />
+              </span>
+            </label>
+            <div class="segmented" data-select="curve">
+              <button
+                type="button"
+                class="btn"
+                data-value="In &amp; Out"
+                data-span="half"
+              >
+                In &amp; Out
+              </button>
+              <button
+                type="button"
+                class="btn"
+                data-value="Out &amp; In"
+                data-span="half"
+              >
+                Out &amp; In
+              </button>
+              <button
+                type="button"
+                class="btn"
+                data-value="Linear"
+                data-span="full"
+              >
+                Linear
+              </button>
+            </div>
+            <button type="button" class="btn" data-span="full" id="play">
+              Play
+            </button>
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Export</h2>
+          <div class="rows">
+            <div class="segmented" data-select="format">
+              <button
+                type="button"
+                class="btn"
+                data-value="png"
+                data-span="half"
+              >
+                PNG
+              </button>
+              <button
+                type="button"
+                class="btn"
+                data-value="mp4"
+                data-span="half"
+              >
+                MP4
+              </button>
+            </div>
+            <label class="ctl" id="widthRow">
+              <span>Width</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="width"
+                  min="330"
+                  max="2640"
+                  step="30"
+                  value="990"
+                />
+                <input class="nub" id="widthOut" value="990" readonly />
+              </span>
+            </label>
+            <label class="ctl" id="fpsRow">
+              <span>FPS</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="fps"
+                  min="12"
+                  max="60"
+                  step="1"
+                  value="30"
+                />
+                <input class="nub" id="fpsOut" value="30" readonly />
+              </span>
+            </label>
+            <label class="ctl" id="bitrateRow">
+              <span>Bitrate</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="bitrate"
+                  min="2"
+                  max="40"
+                  step="1"
+                  value="12"
+                />
+                <input class="nub" id="bitrateOut" value="12" readonly />
+              </span>
+            </label>
+            <button type="button" class="btn" data-span="full" id="export">
+              Export
+            </button>
           </div>
         </section>
       </div>
