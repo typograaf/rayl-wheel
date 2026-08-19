@@ -54,8 +54,13 @@ body {
 }
 
 body {
+  /* Dynamic, because Safari on a phone counts its own toolbar as viewport
+     until you scroll and then does not: at 100vh the panel spends its life
+     under a strip that comes and goes. */
+  height: 100dvh;
   margin: 0;
   overflow: hidden;
+  overscroll-behavior: none;
   display: flex;
   align-items: stretch;
   background: var(--panel);
@@ -63,6 +68,9 @@ body {
   font-weight: 500;
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  /* A tool has no prose to reflow and no second tap to zoom with. */
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 body,
@@ -396,4 +404,77 @@ body.starting * {
   flex: none;
   display: flex;
   gap: 12px;
+}
+
+/* ------------------------------------------------------------ the phone --- */
+
+/*
+ * The panel is a column beside the picture until there is no room for a column,
+ * and then it is a shelf under it.
+ *
+ * 360 of panel out of 390 of phone is not a narrower version of this layout, it
+ * is a different one — so it stops being a side and becomes a bottom, the
+ * picture takes what is above it, and the controls go on scrolling in their own
+ * box the way they already did. Nothing about the design changes: the same
+ * measurements, the same rows, laid the only way they fit.
+ */
+@media (max-width: 760px) {
+  body {
+    flex-direction: column;
+  }
+
+  .frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .panel {
+    width: 100%;
+    height: auto;
+    flex: 0 0 auto;
+    /* Tightened between the groups but not inside them: the rows are the
+       design and stay as they are drawn, while 48 of air between sections is a
+       desktop panel's habit and a third of a phone's. */
+    gap: 24px;
+    /* Enough to see two groups at once and not so much that the picture is a
+       strip. The picture is a tall shape in a tall frame, so every point the
+       panel gives back goes straight into it. */
+    max-height: 38dvh;
+    padding: 20px;
+  }
+
+  .scroll {
+    gap: 32px;
+  }
+
+  .status {
+    bottom: 12px;
+    left: 12px;
+  }
+}
+
+/*
+ * A finger is not a cursor.
+ *
+ * The track is twelve tall because that is what the design draws; a target
+ * twelve tall is a target you miss. The input over it is stretched past the
+ * shape it drives — which is invisible, so nothing about the picture changes —
+ * and told to leave vertical movement alone, so a drag down the panel scrolls
+ * the panel and a drag across a track moves the track.
+ */
+@media (pointer: coarse) {
+  .track input[type="range"] {
+    /* The size has to be let go of as well as the position: the rule this
+       overrides pins the input to a hundred per cent of a twelve-pixel track,
+       and a height wins against a top and a bottom every time. */
+    inset: -8px 0;
+    width: auto;
+    height: auto;
+    touch-action: pan-y;
+  }
+
+  .ctl input[type="color"] {
+    height: 20px;
+  }
 }

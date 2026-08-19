@@ -149,7 +149,9 @@ const mark = () => {
  * bigger picture of exactly the same thing.
  */
 function resize() {
-  const pad = 48;
+  /* The frame's own margin, which is 48 where there is room for 48 and less on
+     a phone, where 48 a side is a third of the picture. */
+  const pad = Math.min(48, Math.round(frame.clientWidth * 0.05));
   const room = {
     w: Math.max(frame.clientWidth - pad * 2, 80),
     h: Math.max(frame.clientHeight - pad * 2, 80),
