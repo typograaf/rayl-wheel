@@ -134,6 +134,35 @@ attribute built with the model, from how steeply a face lies and which side of
 the card it is on. The back stays blank and the rim stays the colour of the card,
 because that is what a printed card is.
 
+## The surface
+
+One colour, or two and a sweep between them.
+
+The sweep runs from the middle of the card outwards, in the same planar
+coordinates the print is laid in — so it is a circle in the card's own space,
+which on something two and a half times as wide as it is tall reaches all four
+edges at once rather than the long ones last. It opens at the design's pair,
+`#cecec5` towards the inside and `#e7e7e0` towards the edges, and the flat
+colour is still what the tool comes up in.
+
+**The two are mixed as levels and turned into light afterwards**, not held as
+light and mixed there — which is the long tool's argument and it holds here. A
+gradient is a thing somebody drew in a design tool, and design tools interpolate
+as levels: `e7` to `ce` has its middle at `db`, where mixing the same two as
+light puts it several levels off what the person who chose them expects. They
+are a material's reflectance in the end, so the turning has to happen; it just
+happens after the mixing rather than before it.
+
+The swatches open the tool's own picker rather than the system's colour panel —
+a square for saturation and value, a bar for hue, and a field showing the hex,
+which is the one people actually reach for. Lifted whole from the long tool,
+where the case against the native one is made: it is a window from another
+application, in another language, that takes the keyboard with it. The input
+stays underneath the swatch holding the value, so the link and the reset read it
+exactly as they read everything else. A swatch that has scrolled out of the
+panel has nothing to anchor to, so the picker closes rather than clamping itself
+over the corner of the window.
+
 ## The room
 
 Drawn rather than downloaded.

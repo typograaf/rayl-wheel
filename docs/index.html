@@ -8,8 +8,8 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2381817b'/%3E%3Crect x='6' y='11' width='20' height='10' rx='3' fill='%23dbdbd2'/%3E%3C/svg%3E"
     />
-    <script type="module" crossorigin src="./assets/index-CMepE-mt.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BDl1Xhd2.css">
+    <script type="module" crossorigin src="./assets/index-C6Xlwa8-.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-RjDjRtLw.css">
   </head>
   <!-- Held until the panel has settled and the type has arrived. Set here
        rather than by script so it is true from the first paint, which is the
@@ -186,9 +186,35 @@
                 <input class="nub" id="roughnessOut" value="0.55" readonly />
               </span>
             </label>
-            <label class="ctl">
+            <div class="segmented" data-select="surface">
+              <button
+                type="button"
+                class="btn"
+                data-value="colour"
+                data-span="half"
+              >
+                Colour
+              </button>
+              <button
+                type="button"
+                class="btn"
+                data-value="gradient"
+                data-span="half"
+              >
+                Gradient
+              </button>
+            </div>
+            <label class="ctl" id="colourRow">
               <span>Colour</span>
               <input type="color" id="colour" value="#f0f0ea" />
+            </label>
+            <label class="ctl" id="insideRow">
+              <span>Inside</span>
+              <input type="color" id="inside" value="#cecec5" />
+            </label>
+            <label class="ctl" id="edgesRow">
+              <span>Edges</span>
+              <input type="color" id="edges" value="#e7e7e0" />
             </label>
           </div>
         </section>

@@ -56,9 +56,17 @@ function cardMaterial(atlas, tile) {
   });
 
   material.userData.tile = { value: new THREE.Vector4(...tile) };
+  /* The graded finish: two colours and a radial sweep between them, or nothing
+     at all and the flat one the material already carries. */
+  material.userData.grade = { value: 0 };
+  material.userData.inside = { value: new THREE.Color(0xcecec5) };
+  material.userData.edge = { value: new THREE.Color(0xe7e7e0) };
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTile = material.userData.tile;
+    shader.uniforms.uGrade = material.userData.grade;
+    shader.uniforms.uInside = material.userData.inside;
+    shader.uniforms.uEdge = material.userData.edge;
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
@@ -71,7 +79,8 @@ function cardMaterial(atlas, tile) {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         "#include <common>",
-        "#include <common>\nuniform vec4 uTile;\nvarying float vPaint;",
+        "#include <common>\nuniform vec4 uTile;\nuniform float uGrade;\n" +
+          "uniform vec3 uInside;\nuniform vec3 uEdge;\nvarying float vPaint;",
       )
       /*
        * Laid into the colour rather than multiplied over it.
@@ -83,7 +92,33 @@ function cardMaterial(atlas, tile) {
        */
       .replace(
         "#include <map_fragment>",
-        `vec4 print = texture2D(map, vMapUv * uTile.xy + uTile.zw);
+        `/*
+         * The card's own colour first, flat or graded, and the design on top of
+         * whichever it is.
+         *
+         * The sweep runs from the middle of the card outwards, in the same
+         * planar coordinates the print is laid in — so it is a circle in the
+         * card's own space, which on something two and a half times as wide as
+         * it is tall reaches all four edges at once rather than the long ones
+         * last.
+         *
+         * The two colours are mixed as levels and turned into light afterwards,
+         * not held as light and mixed there. A gradient is a thing somebody drew
+         * in a design tool, and design tools interpolate as levels: e7 to ce has
+         * its middle at db, where mixing the same two as light puts it several
+         * levels off what the person who chose them expects.
+         */
+        if (uGrade > 0.5) {
+          vec2 fromMiddle = (vMapUv - 0.5) * 2.0;
+          vec3 sweep = mix(uInside, uEdge, clamp(length(fromMiddle), 0.0, 1.0));
+          diffuseColor.rgb = mix(
+            sweep / 12.92,
+            pow((sweep + 0.055) / 1.055, vec3(2.4)),
+            step(vec3(0.04045), sweep)
+          );
+        }
+
+        vec4 print = texture2D(map, vMapUv * uTile.xy + uTile.zw);
         diffuseColor.rgb = mix(diffuseColor.rgb, print.rgb, print.a * vPaint);`,
       );
   };
@@ -162,12 +197,17 @@ export class Wheel {
   }
 
   /** The colour and finish of every card, which is one surface and not many. */
-  setSurface({ colour, roughness, sheen, coat }) {
+  setSurface({ colour, roughness, sheen, coat, graded, inside, edges }) {
     for (const card of this.cards) {
       card.material.color.set(colour);
       card.material.roughness = roughness;
       card.material.sheen = sheen;
       card.material.clearcoat = coat;
+      card.material.userData.grade.value = graded ? 1 : 0;
+      /* Held as the bytes the design names — the turning into light happens in
+         the shader, after the mixing. */
+      card.material.userData.inside.value.setStyle(inside, THREE.NoColorSpace);
+      card.material.userData.edge.value.setStyle(edges, THREE.NoColorSpace);
     }
   }
 

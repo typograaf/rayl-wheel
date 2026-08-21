@@ -426,6 +426,84 @@ check(
   `${there.toFixed(2)} -> ${midway.toFixed(2)} -> ${back.toFixed(2)}`,
 );
 
+/* --------------------------------------------------------- the surface --- */
+
+await set("motion", "cycle");
+await set("travel", 6);
+await set("scroll", 4);
+await set("surface", "colour");
+const oneColour = await frame();
+await set("surface", "gradient");
+const twoColours = await frame();
+check(
+  "the gradient is not the flat colour",
+  oneColour !== twoColours,
+  `${oneColour} vs ${twoColours}`,
+);
+
+await set("inside", "#ff0000");
+const loud = await frame();
+check(
+  "and the two colours drive it",
+  twoColours !== loud,
+  `${twoColours} vs ${loud} with the inside colour moved`,
+);
+await set("inside", "#cecec5");
+
+check(
+  "one colour or two, never both sets of controls",
+  await page.evaluate(() => {
+    const shown = (id) => !document.getElementById(id).hidden;
+    const graded =
+      shown("insideRow") && shown("edgesRow") && !shown("colourRow");
+    document
+      .querySelector('[data-select="surface"] .btn[data-value="colour"]')
+      .click();
+    const flat =
+      shown("colourRow") && !shown("insideRow") && !shown("edgesRow");
+    document
+      .querySelector('[data-select="surface"] .btn[data-value="gradient"]')
+      .click();
+    return graded && flat;
+  }),
+  "the rows follow the switch",
+);
+
+/* The swatches open the tool's own picker rather than the system's panel, and
+   what is typed into it lands on the value the way a drag on it would. */
+const picked = await page.evaluate(async () => {
+  const swatch = document.getElementById("edges");
+  /* Into view first: a picker will not open on a swatch that has scrolled out
+     of the panel — it has nothing to anchor to, and it closes rather than
+     clamping itself over the corner of the window. */
+  swatch.scrollIntoView({ block: "center" });
+  await new Promise((r) => setTimeout(r, 60));
+  swatch.dispatchEvent(
+    new MouseEvent("click", { bubbles: true, cancelable: true }),
+  );
+  const popover = document.querySelector(".picker");
+  const open = popover && !popover.hidden;
+  const field = popover.querySelector(".picker-hex");
+  const shown = field.value;
+  field.value = "#445566";
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 50));
+  document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+  return { open, shown, wrote: window.rayl.params.edges, swatch: swatch.value };
+});
+check(
+  "a swatch opens the tool's own picker",
+  picked.open,
+  picked.open ? "square, hue and hex" : "nothing opened",
+);
+check("showing the colour it holds", picked.shown === "#e7e7e0", picked.shown);
+check(
+  "and typing a hex into it writes through",
+  picked.wrote === "#445566" && picked.swatch === "#445566",
+  `${picked.wrote} on the input, ${picked.swatch} on the swatch`,
+);
+await set("edges", "#e7e7e0");
+
 /* ---------------------------------------------------------- the export --- */
 
 await set("motion", "cycle");

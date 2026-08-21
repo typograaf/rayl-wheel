@@ -406,6 +406,103 @@ body.starting * {
   gap: 12px;
 }
 
+/* ----------------------------------------------------------- the picker --- */
+
+/*
+ * Lifted from the long tool, where the case for it is made: a native colour
+ * input hands the whole interaction to the system's colour panel — a window
+ * from another application, in another language, that takes the keyboard with
+ * it. This is the same thing built out of the panel it lives in. The input
+ * stays underneath the swatch and goes on being where the value lives, so the
+ * link, the reset and everything else read it exactly as they did.
+ */
+.picker[hidden] {
+  display: none;
+}
+
+.picker {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.picker-square {
+  position: relative;
+  width: 170px;
+  height: 120px;
+  border-radius: 3px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.picker-hue {
+  position: relative;
+  width: 170px;
+  height: 12px;
+  border-radius: 3px;
+  cursor: ew-resize;
+  touch-action: none;
+  background: linear-gradient(
+    to right,
+    #f00 0%,
+    #ff0 17%,
+    #0f0 33%,
+    #0ff 50%,
+    #00f 67%,
+    #f0f 83%,
+    #f00 100%
+  );
+}
+
+/* The same handle the ease editor and the lights use: 8 across, ink, straddling
+   wherever it sits. */
+.picker-square > i,
+.picker-hue > i {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.picker-hue > i {
+  top: 6px;
+}
+
+.picker-hex {
+  width: 170px;
+  height: 12px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--control);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 12px;
+  text-align: center;
+  text-transform: lowercase;
+  outline: none;
+  transform: translateY(0.5px);
+}
+
+.picker-hex:focus {
+  background: var(--chosen);
+}
+
+/* Somewhere for a paste to land, and nowhere on screen. Fixed rather than moved
+   off the edge, so focusing it cannot scroll the panel. */
+
 /* ------------------------------------------------------------ the phone --- */
 
 /*

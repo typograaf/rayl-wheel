@@ -4,6 +4,7 @@ import { cardAtlas, PRINT_SCALE, CARD_COLUMNS, CARD_COUNT } from "./cardart.js";
 import { Wheel, CARD_HEIGHT } from "./wheel.js";
 import { backdrop, Lighting } from "./environment.js";
 import { mountTrack } from "./track.js";
+import { mountColourPicker } from "./colour.js";
 import { CURVES, loopAt } from "./ease.js";
 import { serialize, deserialize } from "./settings.js";
 import {
@@ -44,7 +45,12 @@ const DEFAULTS = {
   count: 12,
   depth: 1,
   roughness: 0.55,
+  /* Flat, or two colours and a sweep between them. The design's own pair, from
+     the middle of the card outwards. */
+  surface: "colour",
   colour: "#f0f0ea",
+  inside: "#cecec5",
+  edges: "#e7e7e0",
   rig: "Studio",
   light: 2.4,
   shadow: 0.45,
@@ -360,7 +366,18 @@ function pushSurface() {
     roughness: params.roughness,
     sheen: 0.5,
     coat: 0,
+    graded: params.surface === "gradient",
+    inside: params.inside,
+    edges: params.edges,
   });
+}
+
+/* One colour or two, and never both sets of controls at once. */
+function showSurface() {
+  const graded = params.surface === "gradient";
+  document.getElementById("colourRow").hidden = graded;
+  document.getElementById("insideRow").hidden = !graded;
+  document.getElementById("edgesRow").hidden = !graded;
 }
 
 function pushLighting() {
@@ -405,17 +422,23 @@ function mountPanel() {
   bindSlider("depth", "depth", 2);
   bindSlider("roughness", "roughness", 2, pushSurface);
 
-  const colour = document.getElementById("colour");
-  colour.addEventListener("input", () => {
-    params.colour = colour.value;
+  for (const key of ["colour", "inside", "edges"]) {
+    const swatch = document.getElementById(key);
+    swatch.addEventListener("input", () => {
+      params[key] = swatch.value;
+      pushSurface();
+      record();
+      mark();
+    });
+    sliders.set(key, {
+      refresh: () => {
+        swatch.value = params[key];
+      },
+    });
+  }
+  bindSelect("surface", () => {
+    showSurface();
     pushSurface();
-    record();
-    mark();
-  });
-  sliders.set("colour", {
-    refresh: () => {
-      colour.value = params.colour;
-    },
   });
 
   bindSelect("rig", pushLighting);
@@ -451,6 +474,7 @@ function mountPanel() {
 
   document.getElementById("lensRow").hidden = params.projection === "isometric";
   showFormat();
+  showSurface();
 
   document.getElementById("reset").addEventListener("click", () => {
     Object.assign(params, DEFAULTS);
@@ -462,6 +486,7 @@ function mountPanel() {
     document.getElementById("lensRow").hidden =
       params.projection === "isometric";
     showFormat();
+    showSurface();
     setStatus("");
     place();
     pushSurface();
@@ -880,6 +905,7 @@ async function start() {
      asked for is put into it here, once there is something to bind it to. */
   pushPanel();
   showFormat();
+  showSurface();
   document.getElementById("lensRow").hidden = params.projection === "isometric";
   pushSurface();
   pushLighting();
@@ -891,6 +917,16 @@ async function start() {
 
   await document.fonts.ready;
   document.body.classList.remove("starting");
+}
+
+/* The swatches open the tool's own picker rather than the system's colour
+   panel. The inputs stay where they are, underneath, holding the value. */
+const picker = mountColourPicker();
+for (const swatch of document.querySelectorAll('.panel input[type="color"]')) {
+  swatch.addEventListener("click", (event) => {
+    event.preventDefault();
+    picker.open(swatch);
+  });
 }
 
 start();
