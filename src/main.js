@@ -5,6 +5,7 @@ import { Wheel, CARD_HEIGHT } from "./wheel.js";
 import { backdrop, Lighting } from "./environment.js";
 import { mountTrack } from "./track.js";
 import { mountColourPicker } from "./colour.js";
+import { mountLamps, LAMPS, DEFAULT_AT } from "./lamps.js";
 import { CURVES, loopAt } from "./ease.js";
 import { serialize, deserialize } from "./settings.js";
 import {
@@ -51,9 +52,23 @@ const DEFAULTS = {
   colour: "#f0f0ea",
   inside: "#cecec5",
   edges: "#e7e7e0",
+  /* Light through the card rather than off it — the long tool's own numbers. */
+  through: 0.55,
+  scatter: 0.28,
+  wrap: 0.35,
+  falloff: 2,
   rig: "Studio",
-  light: 2.4,
+  light: 1.6,
   shadow: 0.45,
+  /* The rig, as three lamps placed about the card at rest. Positions are in
+     card widths and come out of the handles rather than a slider. */
+  ...DEFAULT_AT,
+  keyLevel: 0.5,
+  keyTint: "#eaeae5",
+  fillLevel: 0.12,
+  fillTint: "#d1d5bc",
+  edgeLevel: 1,
+  edgeTint: "#eaeae5",
   snap: "snap",
   /* The loop: which way it runs, how many cards it covers, how long it takes,
      and the curve it does it on. */
@@ -114,6 +129,24 @@ const flat = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 40);
 const lens = new THREE.PerspectiveCamera(28, FRAME, 0.1, 40);
 let camera = lens;
 
+/*
+ * The rig's handles, over the picture.
+ *
+ * They live in the frame rather than the panel because a rig is a thing you
+ * arrange by looking at what it does, and the only place to see that is the
+ * picture. Markup rather than scene, so they never reach an export.
+ */
+const lamps = mountLamps({
+  canvas,
+  params,
+  getCamera: () => camera,
+  onChange: () => {
+    pushLamps();
+    record();
+    mark();
+  },
+});
+
 let wheel = null;
 
 /* Where the scroll is going, and where it has got to. The two are separate so
@@ -172,6 +205,7 @@ function resize() {
   }
   renderer.setSize(Math.round(w), Math.round(h));
   place();
+  lamps.update();
   mark();
 }
 
@@ -207,6 +241,9 @@ function place() {
 
   camera = params.projection === "isometric" ? flat : lens;
   camera.lookAt(0, 0, 0);
+  /* The handles are drawn where the lamps project to, so a camera that has
+     moved is a rig that has to be redrawn. */
+  lamps.update();
 }
 
 /** Everything the wheel needs except where it is, which changes per frame. */
@@ -369,6 +406,10 @@ function pushSurface() {
     graded: params.surface === "gradient",
     inside: params.inside,
     edges: params.edges,
+    through: params.through,
+    scatter: params.scatter,
+    wrap: params.wrap,
+    falloff: params.falloff,
   });
 }
 
@@ -383,6 +424,20 @@ function showSurface() {
 function pushLighting() {
   lighting.set(params.rig, params.light);
   lighting.setShadow(params.shadow);
+  pushLamps();
+}
+
+const lampAt = new THREE.Vector3();
+
+/** Where the three lamps are, how hard, and what colour. */
+function pushLamps() {
+  lighting.setLamps(
+    LAMPS.map((lamp) => ({
+      at: lamps.positionOf(lamp.at, lampAt).clone(),
+      level: params[lamp.level],
+      tint: params[lamp.tint],
+    })),
+  );
 }
 
 /** Every control told what the state says, which a link or a reset both need. */
@@ -422,11 +477,29 @@ function mountPanel() {
   bindSlider("depth", "depth", 2);
   bindSlider("roughness", "roughness", 2, pushSurface);
 
-  for (const key of ["colour", "inside", "edges"]) {
+  bindSlider("through", "through", 2, pushSurface);
+  bindSlider("scatter", "scatter", 2, pushSurface);
+  bindSlider("wrap", "wrap", 2, pushSurface);
+  bindSlider("falloff", "falloff", 1, pushSurface);
+
+  for (const lamp of LAMPS) {
+    bindSlider(lamp.level, lamp.level, 2, () => {
+      pushLamps();
+      lamps.update();
+    });
+  }
+
+  for (const key of [
+    "colour",
+    "inside",
+    "edges",
+    ...LAMPS.map((lamp) => lamp.tint),
+  ]) {
     const swatch = document.getElementById(key);
     swatch.addEventListener("input", () => {
       params[key] = swatch.value;
-      pushSurface();
+      if (key.endsWith("Tint")) pushLamps();
+      else pushSurface();
       record();
       mark();
     });
@@ -492,6 +565,7 @@ function mountPanel() {
     pushSurface();
     pushLighting();
     fitList();
+    lamps.update();
     record();
     mark();
   });
@@ -584,10 +658,20 @@ window.addEventListener("keydown", (e) => {
   else play();
 });
 
-canvas.addEventListener(
+/*
+ * The wheel is listened for on the frame rather than on the picture, because
+ * the handles are not in the picture — they are their own layer over it, a
+ * sibling of the canvas, and an event over one of them never reaches it. Which
+ * put the one gesture that moves a lamp in depth out of reach at exactly the
+ * place you would try it: with the pointer on the lamp.
+ */
+frame.addEventListener(
   "wheel",
   (e) => {
     e.preventDefault();
+    /* A selected lamp takes the wheel first: it is the only way to move one
+       along the view, and the scroll has somewhere else it can happen. */
+    if (lamps.wheel(e.deltaY)) return;
     turn(e.deltaY * 0.004);
   },
   { passive: false },
@@ -725,6 +809,7 @@ async function beginExport(given) {
   busy = true;
   cancel = false;
   button.textContent = "Cancel";
+  lamps.setVisible(false);
   /* Pixel ratio of one and the style left alone: the number in the panel is
      the number of pixels in the file, whatever screen it was framed on. */
   renderer.setPixelRatio(1);
@@ -815,6 +900,7 @@ async function beginExport(given) {
     busy = false;
     cancel = false;
     button.textContent = "Export";
+    lamps.setVisible(true);
     /* The big sheet goes back where it came from: it is tens of megabytes of
        texture and the preview has no use for it. */
     if (preview) {
@@ -912,6 +998,7 @@ async function start() {
   fitList();
   resize();
 
+  lamps.update();
   window.addEventListener("resize", resize);
   requestAnimationFrame(tick);
 
@@ -943,6 +1030,7 @@ window.rayl = {
   get camera() {
     return camera;
   },
+  lamps,
   /* The two the suite needs: where the loop is at a given instant, and that
      instant drawn — which is how a seam is looked for without an encoder. */
   pose: (time) => poseAt(time),

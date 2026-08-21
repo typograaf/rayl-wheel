@@ -17,6 +17,14 @@
  * on defaults and says nothing about why.
  */
 
+/* Three numbers with commas between them: where a lamp is. */
+const isPlace = (text) => {
+  const parts = String(text).split(",");
+  return (
+    parts.length === 3 && parts.every((n) => Number.isFinite(parseFloat(n)))
+  );
+};
+
 const number = (v) => {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n : null;
@@ -63,12 +71,14 @@ export function deserialize(text, params) {
       found[key] = Math.min(Math.max(value, low), high);
     } else {
       const row = document.querySelector(`[data-select="${key}"]`);
-      if (row && !row.querySelector(`.btn[data-value="${CSS.escape(raw)}"]`)) {
-        /* A colour is a string with no row of buttons behind it, so it is
-           checked for being one instead. */
+      if (row) {
+        if (!row.querySelector(`.btn[data-value="${CSS.escape(raw)}"]`))
+          continue;
+      } else if (!/^#[0-9a-fA-F]{6}$/.test(raw) && !isPlace(raw)) {
+        /* Which leaves the strings with no row of buttons behind them: a
+           colour, or a lamp's position. Anything else is not one of ours. */
         continue;
       }
-      if (!row && !/^#[0-9a-fA-F]{6}$/.test(raw)) continue;
       found[key] = raw;
     }
   }

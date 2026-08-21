@@ -463,6 +463,14 @@ await set("inside", "#cecec5");
 await set("inside", "#000000");
 await set("edges", "#ffffff");
 await set("scroll", 4);
+/* And the lamps off for the reading. They are three points in space, put where
+   they are to light a card from particular directions, so with them on the two
+   samples differ by the rig as well as by the falloff — which is the rig doing
+   its job and this test measuring the wrong thing. The room is even; that is
+   what is wanted underneath. */
+for (const lamp of ["keyLevel", "fillLevel", "edgeLevel"]) await set(lamp, 0);
+await set("through", 0);
+await wait(200);
 const evenness = await page.evaluate(() => {
   window.rayl.draw(null);
   const gl = window.rayl.renderer.getContext();
@@ -499,6 +507,10 @@ check(
 );
 await set("inside", "#cecec5");
 await set("edges", "#e7e7e0");
+await set("keyLevel", 0.5);
+await set("fillLevel", 0.12);
+await set("edgeLevel", 1);
+await set("through", 0.55);
 
 check(
   "one colour or two, never both sets of controls",
@@ -553,6 +565,109 @@ check(
   `${picked.wrote} on the input, ${picked.swatch} on the swatch`,
 );
 await set("edges", "#e7e7e0");
+
+/* ----------------------------------------------------------- the lamps --- */
+
+/*
+ * The rig is arranged by hand, so what is checked is the hand.
+ *
+ * Where a lamp sits is the whole question translucency asks — the term only
+ * fires from behind — and there is no slider for it, on purpose. There is a
+ * handle on the picture instead.
+ */
+await set("surface", "colour");
+await set("scroll", 4);
+await wait(300);
+
+const dotAt = (lamp) =>
+  page.evaluate((lamp) => {
+    const dot = document
+      .querySelector(`.light-handle[data-lamp="${lamp}"] > i`)
+      .getBoundingClientRect();
+    return { x: dot.x + dot.width / 2, y: dot.y + dot.height / 2 };
+  }, lamp);
+const lampAt = (lamp) => page.evaluate((l) => window.rayl.params[l], lamp);
+const lampLight = (index) =>
+  page.evaluate(
+    (i) =>
+      window.rayl.scene.children
+        .filter((o) => o.isPointLight)
+        [i].position.toArray()
+        .map((v) => +v.toFixed(2)),
+    index,
+  );
+
+const restingAt = await lampAt("fillAt");
+const grab = await dotAt("fillAt");
+await page.mouse.move(grab.x, grab.y);
+await page.mouse.down();
+for (let i = 1; i <= 8; i++)
+  await page.mouse.move(grab.x + i * 9, grab.y - i * 5);
+await page.mouse.up();
+await wait(300);
+const draggedTo = await lampAt("fillAt");
+check(
+  "a lamp goes where its handle is dragged",
+  draggedTo !== restingAt,
+  `${restingAt} -> ${draggedTo}`,
+);
+check(
+  "and the light goes with it",
+  (await lampLight(1)).join(",") === draggedTo.split(",").map(Number).join(","),
+  `the lamp says ${draggedTo}, the light is at ${(await lampLight(1)).join(",")}`,
+);
+
+/* The wheel, with one selected, is the only way to move it in depth — and it
+   must not scroll the list at the same time. */
+const beforeWheel = await lampAt("fillAt");
+const scrollBefore = (await state()).params.scroll;
+const on = await dotAt("fillAt");
+await page.mouse.move(on.x, on.y);
+await page.mouse.wheel({ deltaY: 300 });
+await wait(400);
+const afterWheel = await lampAt("fillAt");
+check(
+  "the wheel moves a selected lamp in depth",
+  afterWheel.split(",")[2] !== beforeWheel.split(",")[2],
+  `${beforeWheel} -> ${afterWheel}`,
+);
+check(
+  "and leaves the list where it was",
+  Math.abs((await state()).params.scroll - scrollBefore) < 0.01,
+  "the list scrolled as well",
+);
+
+/* A press on the picture puts the rig down, so the wheel goes back to being the
+   scroll. Without it a lamp would keep the wheel for the rest of the session. */
+const middle = await page.evaluate(() => {
+  const r = document.getElementById("stage").getBoundingClientRect();
+  return { x: r.x + r.width / 2, y: r.y + r.height * 0.75 };
+});
+await page.mouse.move(middle.x, middle.y);
+await page.mouse.down();
+await page.mouse.up();
+const parked = await lampAt("fillAt");
+await page.mouse.wheel({ deltaY: 300 });
+await wait(700);
+check(
+  "a press on the picture puts the rig down",
+  (await lampAt("fillAt")) === parked &&
+    Math.abs((await state()).params.scroll - scrollBefore) > 0.2,
+  `the lamp is at ${await lampAt("fillAt")}, the list at ${(await state()).params.scroll.toFixed(2)}`,
+);
+
+/* And the light that comes through the card rather than off it. */
+await set("through", 0);
+await wait(200);
+const opaque = await frame();
+await set("through", 0.55);
+await wait(200);
+const waxy = await frame();
+check(
+  "translucency is a different picture",
+  opaque !== waxy,
+  `${opaque} vs ${waxy}`,
+);
 
 /* ---------------------------------------------------------- the export --- */
 

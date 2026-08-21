@@ -215,11 +215,67 @@
               <span>Edges</span>
               <input type="color" id="edges" value="#e7e7e0" />
             </label>
+            <label class="ctl">
+              <span>Translucency</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="through"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.55"
+                />
+                <input class="nub" id="throughOut" value="0.55" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Scatter</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="scatter"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.28"
+                />
+                <input class="nub" id="scatterOut" value="0.28" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Wrap</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="wrap"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.35"
+                />
+                <input class="nub" id="wrapOut" value="0.35" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Falloff</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="falloff"
+                  min="0.5"
+                  max="8"
+                  step="0.1"
+                  value="2"
+                />
+                <input class="nub" id="falloffOut" value="2" readonly />
+              </span>
+            </label>
           </div>
         </section>
 
         <section class="group">
-          <h2>Lighting</h2>
+          <h2>Room</h2>
           <div class="rows">
             <div class="segmented" data-select="rig">
               <button
@@ -256,9 +312,9 @@
                   min="0.2"
                   max="3"
                   step="0.05"
-                  value="2.4"
+                  value="1.6"
                 />
-                <input class="nub" id="lightOut" value="2.4" readonly />
+                <input class="nub" id="lightOut" value="1.6" readonly />
               </span>
             </label>
             <label class="ctl">
@@ -274,6 +330,78 @@
                 />
                 <input class="nub" id="shadowOut" value="0.45" readonly />
               </span>
+            </label>
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Key</h2>
+          <div class="rows">
+            <label class="ctl">
+              <span>Level</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="keyLevel"
+                  min="0"
+                  max="8"
+                  step="0.05"
+                  value="0.5"
+                />
+                <input class="nub" id="keyLevelOut" value="0.5" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Colour</span>
+              <input type="color" id="keyTint" value="#eaeae5" />
+            </label>
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Fill</h2>
+          <div class="rows">
+            <label class="ctl">
+              <span>Level</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="fillLevel"
+                  min="0"
+                  max="8"
+                  step="0.05"
+                  value="0.12"
+                />
+                <input class="nub" id="fillLevelOut" value="0.12" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Colour</span>
+              <input type="color" id="fillTint" value="#d1d5bc" />
+            </label>
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Edge</h2>
+          <div class="rows">
+            <label class="ctl">
+              <span>Level</span>
+              <span class="track">
+                <input
+                  type="range"
+                  id="edgeLevel"
+                  min="0"
+                  max="8"
+                  step="0.05"
+                  value="1"
+                />
+                <input class="nub" id="edgeLevelOut" value="1" readonly />
+              </span>
+            </label>
+            <label class="ctl">
+              <span>Colour</span>
+              <input type="color" id="edgeTint" value="#eaeae5" />
             </label>
           </div>
         </section>

@@ -95,70 +95,77 @@ function room(rig, warmth) {
 }
 
 /**
- * The lighting, as one thing to ask for and one thing to keep.
+ * The lighting: a room, and three lamps standing in it.
  *
- * The room does the shading and a single lamp does the shadow, both from the
- * same place — a card that is lit from above and shadowed from the side is two
- * lights told two different stories, and the eye finds it before it can say
- * why.
+ * The room is the ambient half — where the soft light comes from and what the
+ * specular has to reflect. The lamps are the half you arrange: each one a point
+ * in space you can drag about the picture, because translucency only fires from
+ * behind and so the whole question is where each lamp is relative to the card.
+ *
+ * Only the first casts a shadow. A point light's shadow is a cube — six renders
+ * of the scene — and three of them to catch what one already says would be an
+ * expensive way to make the same picture darker.
  */
 export class Lighting {
-  constructor(renderer, scene) {
+  constructor(renderer, scene, count = 3) {
     this.renderer = renderer;
     this.scene = scene;
     this.pmrem = new THREE.PMREMGenerator(renderer);
     this.pmrem.compileEquirectangularShader();
     this.target = null;
 
-    this.key = new THREE.DirectionalLight(0xffffff, 1);
-    this.key.castShadow = true;
-    this.key.shadow.mapSize.set(1024, 1024);
-    /* The wheel is about four cards across at its widest, so the shadow camera
-       is cut to that and no further: every unit of frustum a shadow map does
-       not cover is resolution the cards get to keep. */
-    const shadow = this.key.shadow.camera;
-    shadow.left = -3;
-    shadow.right = 3;
-    shadow.top = 3;
-    shadow.bottom = -3;
-    shadow.near = 0.5;
-    shadow.far = 14;
-    this.key.shadow.bias = -0.0012;
-    this.key.shadow.normalBias = 0.01;
-    scene.add(this.key, this.key.target);
+    /* Decay of two and no cutoff: a real falloff, so pushing a lamp away with
+       the wheel dims it the way pushing a lamp away does. */
+    this.lamps = [];
+    for (let i = 0; i < count; i++) {
+      const lamp = new THREE.PointLight(0xffffff, 1, 0, 2);
+      if (i === 0) {
+        lamp.castShadow = true;
+        lamp.shadow.mapSize.set(512, 512);
+        lamp.shadow.camera.near = 0.05;
+        lamp.shadow.camera.far = 12;
+        lamp.shadow.bias = -0.004;
+        lamp.shadow.normalBias = 0.02;
+      }
+      this.lamps.push(lamp);
+      scene.add(lamp);
+    }
 
     this.fill = new THREE.AmbientLight(0xffffff, 0.15);
     scene.add(this.fill);
   }
 
-  /** Put the named rig up, at the strength the panel is asking for. */
+  /** Where the lamps are, how hard, and what colour. */
+  setLamps(list) {
+    for (let i = 0; i < this.lamps.length; i++) {
+      const lamp = this.lamps[i];
+      const asked = list[i];
+      if (!asked) {
+        lamp.visible = false;
+        continue;
+      }
+      lamp.visible = asked.level > 0.001;
+      lamp.position.copy(asked.at);
+      lamp.intensity = asked.level;
+      lamp.color.set(asked.tint);
+    }
+  }
+
+  /** Put the named room up, at the strength the panel is asking for. */
   set(name, strength, warmth = 0) {
     const rig = RIGS[name] || RIGS.Studio;
     if (this.target) this.target.dispose();
     this.target = this.pmrem.fromEquirectangular(room(rig, warmth));
     this.scene.environment = this.target.texture;
     this.scene.environmentIntensity = strength;
-
-    /* Where the key is in the room is where the lamp is in the scene: the same
-       two numbers read as an angle round and an angle up. */
-    const [u, v] = rig.key;
-    const azimuth = (u - 0.25) * Math.PI * 2;
-    const elevation = (v - 0.5) * Math.PI;
-    const distance = 6;
-    this.key.position.set(
-      Math.sin(azimuth) * Math.cos(elevation) * distance,
-      Math.sin(elevation) * distance,
-      Math.cos(azimuth) * Math.cos(elevation) * distance,
-    );
-    this.key.target.position.set(0, 0, 0);
-    this.key.intensity = rig.power * 0.28 * strength;
     this.fill.intensity = 0.12 * strength;
   }
 
   /** How dark the shadow is allowed to go, which is a look and not a physics. */
   setShadow(amount) {
-    this.key.castShadow = amount > 0.001;
-    this.key.shadow.intensity = amount;
+    const key = this.lamps[0];
+    key.castShadow = amount > 0.001;
+    key.shadow.intensity = amount;
   }
 
   dispose() {

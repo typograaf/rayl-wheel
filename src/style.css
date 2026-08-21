@@ -406,6 +406,118 @@ body.starting * {
   gap: 12px;
 }
 
+/* ------------------------------------------------------------ the lamps --- */
+
+.light-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.light-layer[data-hidden="true"] {
+  display: none;
+}
+
+.light-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 8px;
+  line-height: 1.4;
+  letter-spacing: 0.08px;
+  pointer-events: none;
+}
+
+.light-handle > * {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+}
+
+/*
+ * The lamp itself, which is the same handle every other control here is dragged
+ * by: 8 across, ink, and nothing else. It is a control on a picture rather than
+ * a picture of a lamp.
+ *
+ * And it empties out as it goes behind the card — the fill drains and an inset
+ * ring is left in its place, so it is still the same thing to take hold of and
+ * still reads at a glance as being on the far side. `--behind` runs 0 at the
+ * card's own plane to nearly 1 far back, so the change is continuous and the
+ * wheel has something to show for itself.
+ */
+.light-handle > i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  cursor: grab;
+  pointer-events: auto;
+  background: color-mix(
+    in srgb,
+    var(--ink) calc((1 - var(--behind, 0)) * 100%),
+    transparent
+  );
+  /* Ink is also the bottom of the backdrop gradient, so the dot needs the
+     control grey under it to survive the light half of the picture. */
+  box-shadow:
+    0 0 0 1px var(--control),
+    inset 0 0 0 1px
+      color-mix(in srgb, var(--ink) calc(var(--behind, 0) * 100%), transparent);
+}
+
+.light-handle[data-selected="true"] > i {
+  background: color-mix(
+    in srgb,
+    var(--chosen) calc((1 - var(--behind, 0)) * 100%),
+    transparent
+  );
+  box-shadow:
+    0 0 0 1px var(--ink),
+    inset 0 0 0 1px
+      color-mix(
+        in srgb,
+        var(--chosen) calc(var(--behind, 0) * 100%),
+        transparent
+      );
+}
+
+.light-handle > span {
+  left: 12px;
+  transform: translate(0, -50%);
+  opacity: 0;
+  transition: opacity 120ms;
+  white-space: nowrap;
+  pointer-events: none;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.light-handle:hover > span,
+.light-handle[data-selected="true"] > span {
+  opacity: 1;
+}
+
+/* Turned all the way down is dimmed: a handle for a lamp that is lighting
+   nothing is a thing to move that moves nothing. */
+.light-handle[data-off="true"] {
+  opacity: 0.3;
+}
+
+/* A finger is bigger than a dot, and a handle on a picture is the one control
+   here with nothing around it to miss into. */
+@media (pointer: coarse) {
+  .light-handle > i {
+    width: 14px;
+    height: 14px;
+  }
+}
+
 /* ----------------------------------------------------------- the picker --- */
 
 /*

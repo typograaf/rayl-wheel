@@ -61,6 +61,9 @@ function cardMaterial(atlas, tile) {
   material.userData.grade = { value: 0 };
   material.userData.inside = { value: new THREE.Color(0xcecec5) };
   material.userData.edge = { value: new THREE.Color(0xe7e7e0) };
+  /* Light coming through the card rather than off it: how much, how wide it
+     spreads, how far it wraps round the terminator, and how tight the lobe is. */
+  material.userData.through = { value: new THREE.Vector4(0, 0.28, 0.35, 2) };
   material.userData.shape = {
     value: new THREE.Vector3(
       CARD_SHAPE.half[0],
@@ -75,6 +78,7 @@ function cardMaterial(atlas, tile) {
     shader.uniforms.uInside = material.userData.inside;
     shader.uniforms.uEdge = material.userData.edge;
     shader.uniforms.uShape = material.userData.shape;
+    shader.uniforms.uThrough = material.userData.through;
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
@@ -89,7 +93,7 @@ function cardMaterial(atlas, tile) {
         "#include <common>",
         "#include <common>\nuniform vec4 uTile;\nuniform float uGrade;\n" +
           "uniform vec3 uInside;\nuniform vec3 uEdge;\nuniform vec3 uShape;\n" +
-          "varying float vPaint;",
+          "uniform vec4 uThrough;\nvarying float vPaint;",
       )
       /*
        * Laid into the colour rather than multiplied over it.
@@ -155,6 +159,53 @@ function cardMaterial(atlas, tile) {
 
         vec4 print = texture2D(map, vMapUv * uTile.xy + uTile.zw);
         diffuseColor.rgb = mix(diffuseColor.rgb, print.rgb, print.a * vPaint);`,
+      )
+      /*
+       * And the light that comes through the card rather than off it.
+       *
+       * Added where three has finished adding everything that comes off it, as
+       * indirect light — which is what it is: it arrived at the far side, was
+       * scattered about inside a few millimetres of material and left in every
+       * direction, and the one thing it no longer remembers is where it came
+       * from.
+       *
+       * The term only fires when a lamp is behind the card, which is why the
+       * lamps are a thing to arrange by hand: the whole gesture is asking which
+       * side of the card a light is on. `scatter` bends the lamp's direction
+       * along the normal, which is how far the glow spreads round from directly
+       * behind; `wrap` carries the ordinary shading past the terminator, the way
+       * light does in anything it can get into; `falloff` is how tight the lobe
+       * is, and so how much of the card lights up at once.
+       *
+       * Shadow is not asked for on purpose. A lamp behind the card is occluded
+       * by the card, so a term that respected the shadow map would be a
+       * translucency that only worked where nothing was in the way.
+       */
+      .replace(
+        "#include <lights_fragment_end>",
+        `#include <lights_fragment_end>
+        #if NUM_POINT_LIGHTS > 0
+        if (uThrough.x > 0.0 || uThrough.z > 0.0) {
+          vec3 look = normalize(vViewPosition);
+          vec3 glow = vec3(0.0);
+          for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
+            vec3 toLamp = pointLights[i].position + vViewPosition;
+            float away = length(toLamp);
+            vec3 lamp = toLamp / max(away, 1e-4);
+            vec3 lit = pointLights[i].color * getDistanceAttenuation(
+              away, pointLights[i].distance, pointLights[i].decay
+            );
+            vec3 bent = normalize(lamp + normal * uThrough.y);
+            glow += lit * pow(clamp(dot(look, -bent), 0.0, 1.0), uThrough.w) * uThrough.x;
+            float facing = dot(normal, lamp);
+            glow += lit * (
+              clamp((facing + uThrough.z) / (1.0 + uThrough.z), 0.0, 1.0) -
+              clamp(facing, 0.0, 1.0)
+            );
+          }
+          reflectedLight.indirectDiffuse += glow * diffuseColor.rgb;
+        }
+        #endif`,
       );
   };
   /* Every card compiles to the same program, and it is not the stock one. */
@@ -232,7 +283,19 @@ export class Wheel {
   }
 
   /** The colour and finish of every card, which is one surface and not many. */
-  setSurface({ colour, roughness, sheen, coat, graded, inside, edges }) {
+  setSurface({
+    colour,
+    roughness,
+    sheen,
+    coat,
+    graded,
+    inside,
+    edges,
+    through,
+    scatter,
+    wrap,
+    falloff,
+  }) {
     for (const card of this.cards) {
       card.material.color.set(colour);
       card.material.roughness = roughness;
@@ -243,6 +306,7 @@ export class Wheel {
          the shader, after the mixing. */
       card.material.userData.inside.value.setStyle(inside, THREE.NoColorSpace);
       card.material.userData.edge.value.setStyle(edges, THREE.NoColorSpace);
+      card.material.userData.through.value.set(through, scatter, wrap, falloff);
     }
   }
 

@@ -189,14 +189,62 @@ map the way an HDR would be. It weighs nothing, it comes up in a frame, and
 because it is generated the rig can _move_ the key rather than choosing between
 two photographs of somebody else's.
 
-Three rigs, and how hard each one is. The room does the shading and a single lamp
-does the shadow, both from the same place — a card lit from above and shadowed
-from the side is two lights telling two different stories, and the eye finds it
-before it can say why.
+Three rooms, and how hard each one is. That is the ambient half of the lighting:
+where the soft light comes from and what the specular has to reflect.
 
 The backdrop is the design's own gradient, `#81817b` to `#dbdbd2`, straight down
 the frame. It is the sheet the cards are photographed against, and a sheet does
 not change when you move a light: only the cards do.
+
+## The rig
+
+The other half is three lamps, and they are placed by hand.
+
+Each one is a point in space with a handle on the picture. Drag a handle and the
+lamp moves in the plane of the screen, which is the plane you can see and judge.
+Turn the wheel with one selected and it moves along the view instead — towards
+you scrolling down, away scrolling up — which is the axis you cannot see and
+therefore the one that needs a gesture of its own rather than a guess. A press
+anywhere else on the picture puts the rig down, so the wheel goes back to being
+the scroll.
+
+**Translucency is the reason it is worth arranging.** The term only fires when a
+lamp is behind the card, so the whole question is where each lamp is relative to
+it, one at a time — which is a thing to place and look at, not a number to
+nominate. The edge lamp starts behind for exactly that reason. So the handle
+says its own depth: the dot empties out as it goes back, and which side of the
+card a lamp is on is the question the gesture is asking anyway.
+
+Positions are in card widths about the middle of the frame, where the card at
+rest is, so a rig stays where it was put when the wheel's radius, spacing or
+count change: the thing being lit has not moved. They ride in the link with
+everything else.
+
+Only the first lamp casts a shadow. A point light's shadow is a cube — six
+renders of the scene — and three of them to catch what one already says would be
+an expensive way to make the same picture darker.
+
+The wheel is listened for on the frame rather than on the picture, because the
+handles are not in the picture: they are their own layer over it, a sibling of
+the canvas, and an event over one of them never reaches it. Which put the one
+gesture that moves a lamp in depth out of reach at exactly the place you would
+try it — with the pointer on the lamp.
+
+## Through the card
+
+Light that arrives at the far side, is scattered about inside a few millimetres
+of material, and leaves in every direction. Added as indirect light, because
+that is what it is: the one thing it no longer remembers is where it came from.
+
+`Translucency` is how much; `Scatter` bends the lamp's direction along the
+normal, which is how far the glow spreads round from directly behind; `Wrap`
+carries the ordinary shading past the terminator, the way light does in anything
+it can get into; `Falloff` is how tight the lobe is, and so how much of the card
+lights up at once. The long tool's four, at the long tool's numbers.
+
+It does not ask about the shadow, on purpose. A lamp behind the card is occluded
+by the card, so a term that respected the shadow map would be a translucency
+that only worked where nothing was in the way.
 
 ## The panel
 
