@@ -440,6 +440,32 @@ function pushLamps() {
   );
 }
 
+/**
+ * Everything in the tool told what the state now says.
+ *
+ * Which is the same job whether the state arrived from a reset, from a link
+ * pasted into the address bar, or from the link the tool was opened on — so it
+ * is one function rather than three lists of calls that drift apart. The last
+ * one to drift was the lamps: reset moved them and a link did not.
+ */
+function settle() {
+  if (playing) stop();
+  asked = Math.round(params.count);
+  pushPanel();
+  document.getElementById("lensRow").hidden = params.projection === "isometric";
+  showFormat();
+  showSurface();
+  target = params.scroll;
+  at = params.scroll;
+  settling = 0;
+  place();
+  pushSurface();
+  pushLighting();
+  fitList();
+  lamps.update();
+  mark();
+}
+
 /** Every control told what the state says, which a link or a reset both need. */
 function pushPanel() {
   for (const [key, control] of sliders) {
@@ -551,23 +577,29 @@ function mountPanel() {
 
   document.getElementById("reset").addEventListener("click", () => {
     Object.assign(params, DEFAULTS);
-    asked = DEFAULTS.count;
-    pushPanel();
-    wheel.setCount(Math.round(params.count));
-    if (playing) stop();
-    target = at = params.scroll;
-    document.getElementById("lensRow").hidden =
-      params.projection === "isometric";
-    showFormat();
-    showSurface();
     setStatus("");
-    place();
-    pushSurface();
-    pushLighting();
-    fitList();
-    lamps.update();
+    settle();
     record();
-    mark();
+  });
+
+  /*
+   * The link, on demand.
+   *
+   * Written out in full first rather than trusting the debounce: the whole
+   * point of pressing this is that what lands on the clipboard is what is on
+   * screen, and a state changed a moment ago has not been written down yet.
+   */
+  document.getElementById("copy").addEventListener("click", async () => {
+    history.replaceState(null, "", `#${serialize(params)}`);
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setStatus("link copied");
+    } catch {
+      /* No clipboard where the page is not trusted with one. The address bar
+         is now correct either way, which is the thing that was being asked
+         for. */
+      setStatus("copy it from the address bar");
+    }
   });
 }
 
@@ -647,6 +679,26 @@ function stop() {
   document.getElementById("play").textContent = "Play";
   mark();
 }
+
+/*
+ * A link pasted into the address bar of a tab that is already open.
+ *
+ * Which changes the hash and does not reload the document, so without this the
+ * address bar says one thing and the picture goes on saying another — the one
+ * way of opening a state that looks like it should obviously work and silently
+ * does not. Whatever the link does not mention keeps the value it has, so a
+ * link with one key in it is a way of changing one thing.
+ */
+window.addEventListener("hashchange", () => {
+  if (busy) return;
+  const asking = deserialize(window.location.hash, params);
+  if (!Object.keys(asking).length) return;
+  Object.assign(params, asking);
+  settle();
+  /* Written back out in full, so a link with one key in it leaves the address
+     bar carrying the whole state rather than the one key. */
+  record();
+});
 
 /* Space, because a transport is a transport. Not while a number is being typed
    into, where a space is a space. */

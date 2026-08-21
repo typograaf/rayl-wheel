@@ -384,3 +384,17 @@ built, and one stale key does not take the rest of the string down with it.
 
 Written on a debounce and with `replaceState`, so dragging a slider leaves one
 entry in the address bar rather than two hundred in the back button.
+
+**And a link pasted into a tab that is already open is taken.** Which is how
+anybody actually opens one: paste it into the address bar of the tab the tool is
+in, press return. That changes the hash and does not reload the document, so
+without listening for it the address bar says one thing and the picture goes on
+saying another — the one way of loading a state that looks like it obviously
+works and silently does not. Whatever the link does not mention keeps the value
+it has, so a link with one key in it is a way of changing one thing; it is
+written back out in full afterwards, so the address bar ends up carrying the
+whole state rather than the key it was handed.
+
+Copy Link puts the current one on the clipboard, written out there and then
+rather than on the debounce: the whole point of pressing it is that what lands
+on the clipboard is what is on screen.

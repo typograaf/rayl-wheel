@@ -896,6 +896,77 @@ check(
   "the controls opened on the defaults",
 );
 
+/*
+ * And a link pasted into a tab that is already open is taken.
+ *
+ * Which is the way anybody actually opens one: paste it in the address bar of
+ * the tab the tool is in, press return. That changes the hash and does not
+ * reload the document, so the picture went on being whatever it was while the
+ * address bar claimed otherwise — the one way of loading a state that looks
+ * like it obviously works and silently does not.
+ */
+await page.evaluate(() => {
+  window.location.hash =
+    "#projection=isometric&radius=2.4&arc=64&surface=gradient&travel=3&count=12";
+});
+await wait(1200);
+const pasted = await state();
+check(
+  "a link pasted into an open tab is taken",
+  pasted.params.projection === "isometric" &&
+    Math.abs(pasted.params.radius - 2.4) < 1e-6 &&
+    Math.abs(pasted.params.arc - 64) < 1e-6,
+  `${pasted.params.projection}, radius ${pasted.params.radius}, arc ${pasted.params.arc}`,
+);
+check(
+  "with the panel following it",
+  (await page.evaluate(() => document.getElementById("radius").value)) ===
+    "2.4" &&
+    (await page.evaluate(
+      () =>
+        document.querySelector(
+          '[data-select="projection"] .btn[data-value="isometric"]',
+        ).dataset.on,
+    )) === "true" &&
+    (await page.evaluate(() => document.getElementById("lensRow").hidden)),
+  "radius, projection and the lens row all moved with it",
+);
+
+/* What a link does not mention keeps the value it has, so a link with one key
+   in it is a way of changing one thing. */
+await page.evaluate(() => {
+  window.location.hash = "#arc=71";
+});
+await wait(1200);
+const nudged = await state();
+check(
+  "and what it does not mention is left alone",
+  Math.abs(nudged.params.arc - 71) < 1e-6 &&
+    nudged.params.projection === "isometric" &&
+    Math.abs(nudged.params.radius - 2.4) < 1e-6,
+  `arc ${nudged.params.arc}, still isometric at radius ${nudged.params.radius}`,
+);
+
+/* Written back out in full, so the address bar carries the whole state rather
+   than the one key it was handed. */
+check(
+  "and the address bar comes back carrying everything",
+  (await page.evaluate(() => window.location.hash)).includes("keyAt=") &&
+    (await page.evaluate(() => window.location.hash)).includes("arc=71"),
+  (await page.evaluate(() => window.location.hash)).slice(0, 60),
+);
+
+/* Copy Link writes it out there and then rather than trusting the debounce:
+   what lands on the clipboard has to be what is on screen. */
+await set("radius", 3.05);
+await page.click("#copy");
+await wait(200);
+check(
+  "copy link writes the state out at once",
+  (await page.evaluate(() => window.location.hash)).includes("radius=3.05"),
+  await page.evaluate(() => document.getElementById("status").textContent),
+);
+
 /* And a still comes out on nothing, which is what taking the sheet off does. */
 const clear = await page.evaluate(() => {
   const m = window.rayl;
