@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { CARD_ASPECT } from "./card.js";
-import { cardTile } from "./cardart.js";
+import { cardTile, CARD_SHAPE } from "./cardart.js";
 
 /**
  * The wheel: a list of cards mounted round the outside of a drum.
@@ -61,12 +61,20 @@ function cardMaterial(atlas, tile) {
   material.userData.grade = { value: 0 };
   material.userData.inside = { value: new THREE.Color(0xcecec5) };
   material.userData.edge = { value: new THREE.Color(0xe7e7e0) };
+  material.userData.shape = {
+    value: new THREE.Vector3(
+      CARD_SHAPE.half[0],
+      CARD_SHAPE.half[1],
+      CARD_SHAPE.radius,
+    ),
+  };
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTile = material.userData.tile;
     shader.uniforms.uGrade = material.userData.grade;
     shader.uniforms.uInside = material.userData.inside;
     shader.uniforms.uEdge = material.userData.edge;
+    shader.uniforms.uShape = material.userData.shape;
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
@@ -80,7 +88,8 @@ function cardMaterial(atlas, tile) {
       .replace(
         "#include <common>",
         "#include <common>\nuniform vec4 uTile;\nuniform float uGrade;\n" +
-          "uniform vec3 uInside;\nuniform vec3 uEdge;\nvarying float vPaint;",
+          "uniform vec3 uInside;\nuniform vec3 uEdge;\nuniform vec3 uShape;\n" +
+          "varying float vPaint;",
       )
       /*
        * Laid into the colour rather than multiplied over it.
@@ -109,8 +118,34 @@ function cardMaterial(atlas, tile) {
          * levels off what the person who chose them expects.
          */
         if (uGrade > 0.5) {
-          vec2 fromMiddle = (vMapUv - 0.5) * 2.0;
-          vec3 sweep = mix(uInside, uEdge, clamp(length(fromMiddle), 0.0, 1.0));
+          /*
+           * How far in from the edges this is, in the card's own units.
+           *
+           * Not how far out from the middle. A circle measured in uv is an
+           * ellipse on a card two and a half times as wide as it is tall, and
+           * an ellipse gives the short edges their falloff over sixty-four
+           * units and the long ones over a hundred and sixty-five — which
+           * reads exactly as it is: the ends lit and the sides not, on a card
+           * that is one material.
+           *
+           * So each pair of edges is measured on its own, over the same depth,
+           * and the two are multiplied. Which matters more than it sounds: the
+           * obvious way to combine them is to take the nearer edge, and the
+           * nearer edge changes which one it is along the diagonals — a fold in
+           * the falloff that comes out as a triangle in each corner, sharpest
+           * exactly where a corner should be softest. A product has no fold in
+           * it anywhere.
+           *
+           * Smoothstepped rather than straight, so the falloff has no kink
+           * where it arrives either: a linear ramp meeting its own limit is a
+           * line the eye finds, on a gradient with nothing else in it to look
+           * at.
+           */
+          vec2 fromMiddle = (vMapUv - 0.5) * uShape.xy * 2.0;
+          vec2 toEdge = uShape.xy - abs(fromMiddle);
+          float deep = min(uShape.x, uShape.y);
+          vec2 fromEach = smoothstep(vec2(0.0), vec2(deep), toEdge);
+          vec3 sweep = mix(uEdge, uInside, fromEach.x * fromEach.y);
           diffuseColor.rgb = mix(
             sweep / 12.92,
             pow((sweep + 0.055) / 1.055, vec3(2.4)),

@@ -138,12 +138,25 @@ because that is what a printed card is.
 
 One colour, or two and a sweep between them.
 
-The sweep runs from the middle of the card outwards, in the same planar
-coordinates the print is laid in — so it is a circle in the card's own space,
-which on something two and a half times as wide as it is tall reaches all four
-edges at once rather than the long ones last. It opens at the design's pair,
-`#cecec5` towards the inside and `#e7e7e0` towards the edges, and the flat
-colour is still what the tool comes up in.
+The sweep is measured in from the edges rather than out from the middle, in the
+same units the print is laid out in. Out from the middle sounds like the same
+thing and is not: a circle measured in uv is an ellipse on a card two and a half
+times as wide as it is tall, so the short edges get their falloff over
+sixty-four units and the long ones over a hundred and sixty-five — which reads
+exactly as it is, the ends lit and the sides not, on a card that is one
+material.
+
+So each pair of edges is measured on its own, over the same depth, and the two
+are multiplied. That last part matters more than it sounds. The obvious way to
+put two distances together is to take the nearer edge, and which edge is nearer
+changes along the diagonals — a fold in the falloff that comes out as a triangle
+in each corner, sharpest exactly where a corner wants to be softest. A product
+has no fold in it anywhere. Each factor is smoothstepped rather than straight
+for the same reason at the other end: a linear ramp meeting its own limit leaves
+a line the eye finds, on a gradient with nothing else in it to look at.
+
+It opens at the design's pair, `#cecec5` towards the inside and `#e7e7e0`
+towards the edges, and the flat colour is still what the tool comes up in.
 
 **The two are mixed as levels and turned into light afterwards**, not held as
 light and mixed there — which is the long tool's argument and it holds here. A

@@ -450,6 +450,56 @@ check(
 );
 await set("inside", "#cecec5");
 
+/*
+ * And every edge falls off at the same rate.
+ *
+ * Measured where it shows: two points the same distance in from the outline,
+ * one from a short edge and one from a long one. A sweep measured out from the
+ * middle in uv is an ellipse on a card two and a half times as wide as it is
+ * tall, and those two points come out nothing like each other — the ends lit
+ * and the sides not. Black inside and white out, so what is being compared is
+ * the falloff and not the lighting.
+ */
+await set("inside", "#000000");
+await set("edges", "#ffffff");
+await set("scroll", 4);
+const evenness = await page.evaluate(() => {
+  window.rayl.draw(null);
+  const gl = window.rayl.renderer.getContext();
+  const w = gl.drawingBufferWidth;
+  const h = gl.drawingBufferHeight;
+  const read = (x, y) => {
+    const px = new Uint8Array(4);
+    gl.readPixels(
+      Math.round(x),
+      Math.round(h - y),
+      1,
+      1,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      px,
+    );
+    return (px[0] + px[1] + px[2]) / 3;
+  };
+  /* The card at rest is in the middle of the frame, square on, and takes this
+     much of its width — so where its edges are is arithmetic. */
+  const wide = w * window.rayl.params.fill;
+  const tall = wide / (330 / 128);
+  const inset = (30 / 330) * wide;
+  return {
+    fromLong: read(w / 2, h / 2 - tall / 2 + inset),
+    fromShort: read(w / 2 - wide / 2 + inset, h / 2),
+  };
+});
+const gap = Math.abs(evenness.fromLong - evenness.fromShort);
+check(
+  "every edge falls off at the same rate",
+  gap < 12,
+  `${Math.round(evenness.fromLong)} in from the top, ${Math.round(evenness.fromShort)} in from the side`,
+);
+await set("inside", "#cecec5");
+await set("edges", "#e7e7e0");
+
 check(
   "one colour or two, never both sets of controls",
   await page.evaluate(() => {

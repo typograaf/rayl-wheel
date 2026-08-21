@@ -21,6 +21,13 @@ const H = 128;
 const PAD = 24;
 const GAP = 24;
 
+/*
+ * The card's outline, in the design's units — half across, half down, and the
+ * corner. What the print is laid out in, and what the graded finish measures
+ * its falloff against, so the two cannot drift apart.
+ */
+export const CARD_SHAPE = { half: [W / 2, H / 2], radius: 24 };
+
 /* The design's own two. */
 const INK = "#3f3f3b";
 const TROUGH = "#cecec5";
